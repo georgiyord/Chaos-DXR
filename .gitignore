@@ -1,2 +1,7 @@
 .wine_msvc_prefix
 MSVC
+**.exe
+**.obj
+**.pdb
+**.ilk
+.vscode
