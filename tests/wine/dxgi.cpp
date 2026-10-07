@@ -3,35 +3,36 @@
 #endif 
 
 #include <windows.h>
+#include <wrl/client.h>
 #include <D3d12.h>
-#include <dxgi.h>
+#include <dxgi1_6.h>
 #include <vector>
 #include <iostream>
 #include <string_view>
 
 int main()
 {
-    IDXGIFactory1 *pFactory;
-    HRESULT factoryResult = CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**) &pFactory);
-    if (factoryResult != S_OK){
+    Microsoft::WRL::ComPtr<IDXGIFactory7> pFactory;
+    HRESULT factoryResult = CreateDXGIFactory2(0, IID_PPV_ARGS(&pFactory));
+    if (FAILED(factoryResult)){
         return 1;
     }
 
-    UINT i = 0; 
-    IDXGIAdapter1 * pAdapter; 
-    std::vector <IDXGIAdapter1*> vAdapters; 
-    while(pFactory->EnumAdapters1(i, &pAdapter) != DXGI_ERROR_NOT_FOUND) 
-    { 
-        vAdapters.push_back(pAdapter); 
-        ++i; 
+    std::vector<Microsoft::WRL::ComPtr<IDXGIAdapter4>> vAdapters; 
+    for ( UINT i = 0; ; ++i){
+        Microsoft::WRL::ComPtr<IDXGIAdapter4> pAdapter; 
+        HRESULT hr = pFactory->EnumAdapters1(i, (IDXGIAdapter1**)pAdapter.GetAddressOf());
+        if(hr == DXGI_ERROR_NOT_FOUND || FAILED(hr)){
+            break;
+        }
+        vAdapters.push_back(std::move(pAdapter));
     }
 
     std::cout << "Adapters: " << vAdapters.size() << '\n';
 
-    for (i = 0; i < vAdapters.size(); ++i){
-        pAdapter = vAdapters[i];
-        DXGI_ADAPTER_DESC1 adapterDescription;
-        pAdapter->GetDesc1(&adapterDescription);
+    for (UINT i = 0; i < vAdapters.size(); ++i){
+        DXGI_ADAPTER_DESC3 adapterDescription;
+        vAdapters[i]->GetDesc3(&adapterDescription);
         std::wcout << 
                     "Adapter " <<
                     i <<
@@ -57,19 +58,19 @@ int main()
                     adapterDescription.Flags <<
                     "\n\n";
 
-        UINT j = 0; 
-        IDXGIOutput * pOutput; 
-        std::vector <IDXGIOutput*> vOutputs; 
-        while(pAdapter->EnumOutputs(j, &pOutput) != DXGI_ERROR_NOT_FOUND) 
-        { 
-            vOutputs.push_back(pOutput); 
-            ++j; 
+        std::vector <Microsoft::WRL::ComPtr<IDXGIOutput6>> vOutputs; 
+        for (UINT j = 0; ; ++j){
+            Microsoft::WRL::ComPtr<IDXGIOutput6> pOutput;
+            HRESULT hr = vAdapters[i]->EnumOutputs(j, (IDXGIOutput**)pOutput.GetAddressOf());
+            if(hr == DXGI_ERROR_NOT_FOUND || FAILED(hr)){
+                break;
+            }
+            vOutputs.push_back(std::move(pOutput));
         }
 
-        for (j = 0; j < vOutputs.size(); ++j){
-            pOutput = vOutputs[j];
-            DXGI_OUTPUT_DESC outputDescription;
-            pOutput->GetDesc(&outputDescription);
+        for (UINT j = 0; j < vOutputs.size(); ++j){
+            DXGI_OUTPUT_DESC1 outputDescription;
+            vOutputs[j]->GetDesc1(&outputDescription);
             std::wcout << 
                         "\tOutput " <<
                         j <<
@@ -84,13 +85,7 @@ int main()
                         // "\n\t\tMonitor: " <<
                         // outputDescription.Monitor <<
                         "\n\n";
-            
-            pOutput->Release();
         }        
-        pAdapter->Release();
     }
-    pFactory->Release();
-
-
     return 0;
 }
