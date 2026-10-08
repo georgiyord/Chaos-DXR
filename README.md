@@ -16,7 +16,7 @@ If [nix](https://github.com/NixOS/nix) is available on the platform, a flake is 
 After cloning the repository, you have to setup Wine, MSVC and the Windows SDK by running some of the provided tools. Requirements for running them are vendor specific and should be looked at [msvc-wine](https://github.com/mstorsjo/msvc-wine).
 
 ```
-git clone https://github.com/georgiyord/Chaos-DXR.git
+git clone --recuse-submodules https://github.com/georgiyord/Chaos-DXR.git
 cd Chaos-DXR
 source tools/wine-msvc/wine-env.sh
 ./tools/wine-msvc/init.sh
