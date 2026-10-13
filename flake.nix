@@ -18,11 +18,15 @@
           winetricks
           python3
           msitools
+          cmake
+          cmake-language-server
+          cmake-format
+          ninja
         ];
         shellHook = ''
           source ./tools/wine-msvc/wine-env.sh
-          ./tools/wine-msvc/init.sh
-          export PATH=./MSVC/bin/x64:$PATH
+          ./tools/wine-msvc/init.sh --skip-test --skip-fetch
+          # export PATH="$(realpath ./MSVC/bin/x64):$PATH"
         '';
       };
     };

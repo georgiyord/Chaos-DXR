@@ -10,6 +10,8 @@
 #include <iostream>
 #include <string_view>
 
+#pragma comment(lib, "dxgi.lib")
+
 int main()
 {
     Microsoft::WRL::ComPtr<IDXGIFactory7> pFactory;

@@ -5,3 +5,8 @@ MSVC
 **.pdb
 **.ilk
 .vscode
+.notes
+.envrc
+build
+.direnv
+.clangd
