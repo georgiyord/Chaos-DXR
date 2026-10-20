@@ -1,3 +1,6 @@
 [submodule "tools/wine-msvc/third-party/msvc-wine"]
 	path = tools/wine-msvc/third-party/msvc-wine
 	url = https://github.com/mstorsjo/msvc-wine
+[submodule "vendor/wil"]
+	path = vendor/wil
+	url = https://github.com/microsoft/wil.git

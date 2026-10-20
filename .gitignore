@@ -10,3 +10,4 @@ MSVC
 build
 .direnv
 .clangd
+**.ppm
