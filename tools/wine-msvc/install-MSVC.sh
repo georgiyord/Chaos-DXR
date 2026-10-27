@@ -7,7 +7,6 @@ SCRIPT_DIR=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
 PROJECT_DIR=$( cd $SCRIPT_DIR/../.. ; pwd -P )
 
 COMPONENTS=(
-	"Microsoft.VisualStudio.Component.Graphics.Tools"
 	"Microsoft.VisualStudio.Component.VC.14.51.x86.x64"
 	"Microsoft.VisualStudio.Component.Windows11SDK.28000"
 )
