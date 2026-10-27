@@ -1,23 +1,23 @@
 #pragma once
 
-#include <wrl/client.h>
-#include <dxgi1_6.h>
-#include <d3d12.h>
 #include "RechtRenderer.hpp"
+#include <d3d12.h>
+#include <dxgi1_6.h>
 #include <memory>
+#include <wrl/client.h>
 
 class Renderer
 {
-private:
-    Microsoft::WRL::ComPtr<ID3D12Device>            m_d3d12device;
-    Microsoft::WRL::ComPtr<ID3D12CommandAllocator>  m_commandAllocator;
-    Microsoft::WRL::ComPtr<ID3D12CommandQueue>      m_commandQueue;
+  private:
+    winrt::com_ptr<ID3D12Device> m_d3d12device;
+    winrt::com_ptr<ID3D12CommandAllocator> m_commandAllocator;
+    winrt::com_ptr<ID3D12CommandQueue> m_commandQueue;
 
     mutable std::unique_ptr<RechtRenderer> m_rechtRenderer;
 
     friend RechtRenderer;
 
-public:
+  public:
     Renderer();
-    RechtRenderer* AsRechtRenderer() const;
+    RechtRenderer *AsRechtRenderer() const;
 };
