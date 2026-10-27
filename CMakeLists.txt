@@ -5,24 +5,41 @@ project(
   LANGUAGES C CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_CLANG_TIDY clang-tidy --extra-arg-before=-EHsc)
+set(MSVC_DIR "${PROJECT_SOURCE_DIR}/MSVC")
+set(MSVC_VER "14.51.36231")
+set(SDK_DIR "${MSVC_DIR}/Windows Kits/10/Include/10.0.28000.0")
 
 add_executable(Chaos-DXR src/main.cpp src/RechtRenderer.cpp src/Renderer.cpp)
-set_property(TARGET Chaos-DXR PROPERTY CXX_STANDARD 20)
-set_property(TARGET Chaos-DXR PROPERTY WIN32_EXECUTABLE true)
+target_compile_options(Chaos-DXR PRIVATE
+  /W4
+  /WX
+  /permissive-
+)
 set_target_properties(Chaos-DXR PROPERTIES
   CXX_STANDARD 20
   CXX_STANDARD_REQUIRED ON
   WIN32_EXECUTABLE ON  
 )
-target_include_directories(Chaos-DXR PRIVATE "${PROJECT_SOURCE_DIR}/src/include" PRIVATE "${PROJECT_SOURCE_DIR}/vendor/wil/include")
+target_include_directories(Chaos-DXR PRIVATE
+  "${PROJECT_SOURCE_DIR}/src/include")
+target_include_directories(Chaos-DXR SYSTEM PRIVATE
+  "${PROJECT_SOURCE_DIR}/vendor/wil/include"
+  "${MSVC_DIR}/vc/tools/msvc/${MSVC_VER}/include"
+  "${SDK_DIR}/shared"
+  "${SDK_DIR}/ucrt"
+  "${SDK_DIR}/um"
+  "${SDK_DIR}/winrt"
+  "${SDK_DIR}/cppwinrt"
+)
 
-if(NOT WIN32)
+if(NOT CMAKE_HOST_WIN32)
   add_custom_command(
     TARGET Chaos-DXR
     POST_BUILD
     COMMAND
       ${CMAKE_COMMAND} -E copy_directory_if_different
-      "${PROJECT_SOURCE_DIR}/MSVC/VC/Redist/MSVC/14.51.36231/debug_nonredist/x64/Microsoft.VC145.DebugCRT"
+      "${MSVC_DIR}/VC/Redist/MSVC/${MSVC_VER}/debug_nonredist/x64/Microsoft.VC145.DebugCRT"
       $<TARGET_FILE_DIR:Chaos-DXR>)
 
   add_custom_command(
@@ -30,6 +47,6 @@ if(NOT WIN32)
     POST_BUILD
     COMMAND
       ${CMAKE_COMMAND} -E copy_if_different
-      "${PROJECT_SOURCE_DIR}/MSVC/Windows Kits/10/bin/10.0.26100.0/x64/ucrt/ucrtbased.dll"
+      "${SDK_DIR}/x64/ucrt/ucrtbased.dll"
       $<TARGET_FILE_DIR:Chaos-DXR>)
 endif()
