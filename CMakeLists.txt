@@ -47,6 +47,6 @@ if(NOT CMAKE_HOST_WIN32)
     POST_BUILD
     COMMAND
       ${CMAKE_COMMAND} -E copy_if_different
-      "${SDK_DIR}/x64/ucrt/ucrtbased.dll"
+      "${MSVC_DIR}/Windows Kits/10/bin/10.0.28000.0/x64/ucrt/ucrtbased.dll"
       $<TARGET_FILE_DIR:Chaos-DXR>)
 endif()
