@@ -199,6 +199,8 @@ RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color) const
         }
     }
 
+    m_commandAllocator->Reset();
+
     RechtData recht(m_readbackBuffer, 0, srcFootprint);
     return recht;
 }
