@@ -19,7 +19,7 @@ target_compile_options(Chaos-DXR PRIVATE
 set_target_properties(Chaos-DXR PROPERTIES
   CXX_STANDARD 20
   CXX_STANDARD_REQUIRED ON
-  WIN32_EXECUTABLE ON  
+  WIN32_EXECUTABLE ON
 )
 target_include_directories(Chaos-DXR PRIVATE
   "${PROJECT_SOURCE_DIR}/src/include")
@@ -38,15 +38,22 @@ if(NOT CMAKE_HOST_WIN32)
     TARGET Chaos-DXR
     POST_BUILD
     COMMAND
-      ${CMAKE_COMMAND} -E copy_directory_if_different
-      "${MSVC_DIR}/VC/Redist/MSVC/${MSVC_VER}/debug_nonredist/x64/Microsoft.VC145.DebugCRT"
-      $<TARGET_FILE_DIR:Chaos-DXR>)
+    ${CMAKE_COMMAND} -E copy_directory_if_different
+    "${MSVC_DIR}/VC/Redist/MSVC/${MSVC_VER}/debug_nonredist/x64/Microsoft.VC145.DebugCRT"
+    $<TARGET_FILE_DIR:Chaos-DXR>)
 
   add_custom_command(
     TARGET Chaos-DXR
     POST_BUILD
     COMMAND
-      ${CMAKE_COMMAND} -E copy_if_different
-      "${MSVC_DIR}/Windows Kits/10/bin/10.0.28000.0/x64/ucrt/ucrtbased.dll"
-      $<TARGET_FILE_DIR:Chaos-DXR>)
+    ${CMAKE_COMMAND} -E copy_if_different
+    "${MSVC_DIR}/Windows Kits/10/bin/10.0.28000.0/x64/ucrt/ucrtbased.dll"
+    $<TARGET_FILE_DIR:Chaos-DXR>)
+endif()
+
+
+if(CMAKE_HOST_WIN32)
+  target_compile_definitions(Chaos-DXR PRIVATE WIN_HOST=1)
+else()
+  target_compile_definitions(Chaos-DXR PRIVATE WIN_HOST=0)
 endif()
