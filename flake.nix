@@ -22,6 +22,7 @@
           cmake-language-server
           cmake-format
           ninja
+          include-what-you-use
         ];
         shellHook = ''
           cmake --preset Debug
