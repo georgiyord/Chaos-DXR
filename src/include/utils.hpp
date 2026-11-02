@@ -1,8 +1,10 @@
 #pragma once
 
-// #include <comdef.h>
-// #include <wrl/client.h>
+#include <comdef.h>
+#include <random>
+#include <windows.h>
 #include <winrt/base.h>
+#include <wrl/client.h>
 
 template <typename T> class access_ptr
 {

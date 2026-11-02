@@ -2,9 +2,18 @@
 
 #include "RechtRenderer.hpp"
 #include "Renderer.hpp"
-#include <array>
-#include <random>
+#include "utils.hpp"
+#include <basetsd.h>
+#include <cstdlib>
+#include <cstring>
+#include <fileapi.h>
+#include <handleapi.h>
+#include <minwindef.h>
+#include <span>
+#include <strsafe.h>
 #include <wil/resource.h>
+#include <wil/wistd_type_traits.h>
+#include <windows.h>
 
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "D3D12.lib")

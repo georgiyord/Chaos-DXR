@@ -1,8 +1,17 @@
 #include "RechtRenderer.hpp"
 #include "utils.hpp"
 #include <array>
+#include <combaseapi.h>
 #include <cstdint>
-#include <wrl/client.h>
+#include <dxgicommon.h>
+#include <dxgiformat.h>
+#include <iterator>
+#include <stdexcept>
+#include <strsafe.h>
+#include <synchapi.h>
+#include <utility>
+#include <wil/result_macros.h>
+#include <winerror.h>
 
 constexpr UINT64 WIDTH = 16;
 constexpr UINT64 HEIGHT = 16;

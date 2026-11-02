@@ -1,5 +1,12 @@
 #include "Renderer.hpp"
-#include <wil/result.h>
+#include <__msvc_ostream.hpp>
+#include <combaseapi.h>
+#include <d3dcommon.h>
+#include <dxgi.h>
+#include <dxgi1_3.h>
+#include <dxgi1_4.h>
+#include <iostream>
+#include <wil/result_macros.h>
 
 RechtRenderer *Renderer::AsRechtRenderer() const
 {

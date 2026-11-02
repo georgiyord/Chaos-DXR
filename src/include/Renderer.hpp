@@ -2,9 +2,8 @@
 
 #include "RechtRenderer.hpp"
 #include <d3d12.h>
-#include <dxgi1_6.h>
 #include <memory>
-#include <wrl/client.h>
+#include <winrt/base.h>
 
 class Renderer
 {
