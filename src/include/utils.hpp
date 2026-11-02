@@ -38,7 +38,7 @@ template <typename T> class access_ptr
     }
 };
 
-[[nodiscard]] std::array<FLOAT, 4> randomColor()
+[[nodiscard]] inline std::array<FLOAT, 4> randomColor()
 {
     static std::random_device randomDevice;
     static std::mt19937 gen(randomDevice());
