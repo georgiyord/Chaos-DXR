@@ -15,6 +15,15 @@ const D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {D3D12_COMMAND_LIST_TYPE_DIREC
 
 Renderer::Renderer() : m_rechtRenderer(nullptr)
 {
+#if defined(_DEBUG) && WIN_HOST
+    {
+        winrt::com_ptr<ID3D12Debug6> debugInterface;
+        THROW_IF_FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(debugInterface.put())));
+        debugInterface->EnableDebugLayer();
+    }
+#elif defined(_DEBUG)
+    std::cerr << "Could not enable D3D12 debug layer: Not supported on wine/vkd3d/proton\n";
+#endif
     winrt::com_ptr<IDXGIFactory4> pFactory;
     THROW_IF_FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(pFactory.put())));
 
