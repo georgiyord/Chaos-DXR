@@ -13,9 +13,6 @@
 #include <wil/result_macros.h>
 #include <winerror.h>
 
-constexpr UINT64 WIDTH = 16;
-constexpr UINT64 HEIGHT = 16;
-
 RechtData::RechtData(const winrt::com_ptr<ID3D12Resource> &readbackBuffer, const UINT subresource,
                      const D3D12_PLACED_SUBRESOURCE_FOOTPRINT &footprint)
     : m_width(footprint.Footprint.Width), m_height(footprint.Footprint.Height),
@@ -56,14 +53,14 @@ enum class FENCE_STATUS : uint_fast8_t
     FINISHED = 1,
 };
 
-const D3D12_DESCRIPTOR_HEAP_DESC rtvDescriber = {
+constexpr D3D12_DESCRIPTOR_HEAP_DESC rtvDescriber = {
     .Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
     .NumDescriptors = 1,
     .Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
     .NodeMask = 0,
 };
 
-const D3D12_HEAP_PROPERTIES textureHeapProperties = {
+constexpr D3D12_HEAP_PROPERTIES textureHeapProperties = {
     .Type = D3D12_HEAP_TYPE_DEFAULT,
     .CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
     .MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN,
@@ -71,23 +68,7 @@ const D3D12_HEAP_PROPERTIES textureHeapProperties = {
     .VisibleNodeMask = 0,
 };
 
-const D3D12_RESOURCE_DESC textureResourceDesc = {
-    .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-    .Alignment = 0, // Automatic alignment
-    .Width = WIDTH,
-    .Height = HEIGHT,
-    .DepthOrArraySize = 1, // Number of 2D textures stored in the object
-    .MipLevels = 1,        // Mipmap levels, 0 is automatic, 1 is base-case
-    .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
-    .SampleDesc =
-        DXGI_SAMPLE_DESC{
-            .Count = 1,
-            .Quality = 0,
-        },
-    .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
-    .Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
-};
-const D3D12_HEAP_PROPERTIES readbackBufferProperties = {
+constexpr D3D12_HEAP_PROPERTIES readbackBufferProperties = {
     .Type = D3D12_HEAP_TYPE_READBACK,
     .CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
     .MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN,
@@ -95,21 +76,36 @@ const D3D12_HEAP_PROPERTIES readbackBufferProperties = {
     .VisibleNodeMask = 0,
 };
 
-RechtRenderer::RechtRenderer(ID3D12Device *d3d12device, ID3D12CommandAllocator *commandAllocator,
-                             ID3D12CommandQueue *commandQueue)
-    : m_d3d12device(d3d12device), m_commandAllocator(commandAllocator), m_commandQueue(commandQueue)
+inline void RechtRenderer::allocateTextureMemory()
 {
+    m_textureResourceDesc = {
+        .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+        .Alignment = 0, // Automatic alignment
+        .Width = m_textureWidth,
+        .Height = m_textureHeight,
+        .DepthOrArraySize = 1, // Number of 2D textures stored in the object
+        .MipLevels = 1,        // Mipmap levels, 0 is automatic, 1 is base-case
+        .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+        .SampleDesc =
+            DXGI_SAMPLE_DESC{
+                .Count = 1,
+                .Quality = 0,
+            },
+        .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+        .Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+    };
+
     THROW_IF_FAILED(m_d3d12device->CreateCommittedResource(&textureHeapProperties, D3D12_HEAP_FLAG_NONE,
-                                                           &textureResourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                                           &m_textureResourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET,
                                                            nullptr, IID_PPV_ARGS(m_textureResource.put())));
-    THROW_IF_FAILED(m_d3d12device->CreateDescriptorHeap(&rtvDescriber, IID_PPV_ARGS(m_descriptorHeap.put())));
-    m_rtvHandle = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+
     m_d3d12device->CreateRenderTargetView(m_textureResource.get(), nullptr, m_rtvHandle);
 
     UINT64 bufferSize{};
-    m_d3d12device->GetCopyableFootprints(&textureResourceDesc, 0, 1, 0, &srcFootprint, nullptr, nullptr, &bufferSize);
+    m_d3d12device->GetCopyableFootprints(&m_textureResourceDesc, 0, 1, 0, &m_srcFootprint, nullptr, nullptr,
+                                         &bufferSize);
 
-    const D3D12_RESOURCE_DESC readbackBufferDesc = {
+    m_readbackBufferDesc = {
         .Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
         .Alignment = 0, // Automatic alignment
         .Width = bufferSize,
@@ -127,10 +123,8 @@ RechtRenderer::RechtRenderer(ID3D12Device *d3d12device, ID3D12CommandAllocator *
     };
 
     THROW_IF_FAILED(m_d3d12device->CreateCommittedResource(&readbackBufferProperties, D3D12_HEAP_FLAG_NONE,
-                                                           &readbackBufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                                           &m_readbackBufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
                                                            IID_PPV_ARGS(m_readbackBuffer.put())));
-    THROW_IF_FAILED(m_d3d12device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.put())));
-
     m_barrierToRender = {
         .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
         .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
@@ -163,13 +157,36 @@ RechtRenderer::RechtRenderer(ID3D12Device *d3d12device, ID3D12CommandAllocator *
     m_copyLocationDst = {
         .pResource = m_readbackBuffer.get(),
         .Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
-        .PlacedFootprint = srcFootprint,
+        .PlacedFootprint = m_srcFootprint,
     };
+}
+
+RechtRenderer::RechtRenderer(ID3D12Device *d3d12device, ID3D12CommandAllocator *commandAllocator,
+                             ID3D12CommandQueue *commandQueue)
+    : m_d3d12device(d3d12device), m_commandAllocator(commandAllocator), m_commandQueue(commandQueue)
+{
+    THROW_IF_FAILED(m_d3d12device->CreateDescriptorHeap(&rtvDescriber, IID_PPV_ARGS(m_descriptorHeap.put())));
+    m_rtvHandle = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+    allocateTextureMemory();
+
+    THROW_IF_FAILED(m_d3d12device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.put())));
+
 
     m_synchEvent.create();
 }
 
-RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color) const
+RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color, UINT width, UINT height)
+{
+    if (width != m_textureWidth || height != m_textureHeight)
+    {
+        m_textureWidth = width;
+        m_textureHeight = height;
+        allocateTextureMemory();
+    }
+    return RenderSquare(color);
+}
+
+RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color)
 {
     std::array<ID3D12CommandList *, 1> ppCommandLists{};
     winrt::com_ptr<ID3D12GraphicsCommandList> graphicsCommandList;
@@ -201,6 +218,6 @@ RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color) const
 
     m_commandAllocator->Reset();
 
-    RechtData recht(m_readbackBuffer, 0, srcFootprint);
+    RechtData recht(m_readbackBuffer, 0, m_srcFootprint);
     return recht;
 }

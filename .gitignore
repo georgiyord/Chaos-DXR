@@ -12,3 +12,4 @@ build-debug
 .direnv
 .clangd
 **.ppm
+.vs

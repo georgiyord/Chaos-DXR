@@ -67,3 +67,33 @@ template <typename T> class access_ptr
         return {1.F, 0, offset, 1.F};
     }
 }
+
+// void writeImage(RechtData recht, LPCWSTR name)
+// {
+//     wil::unique_hfile file{CreateFileW(name, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL)};
+//     // good practive would be to check the amount of written bytes, but knowing
+//     // this will not be used later, i can't be bothered
+//     WriteFile(file.get(), "P3\n", 3, nullptr, nullptr);
+//     char buf[40];
+//     _ui64toa_s(recht.width(), buf, sizeof(buf), 10);
+//     WriteFile(file.get(), buf, static_cast<DWORD>(strnlen_s(buf, sizeof(buf))), nullptr, nullptr);
+//     WriteFile(file.get(), "\n", 1, nullptr, nullptr);
+//     _ui64toa_s(recht.height(), buf, sizeof(buf), 10);
+//     WriteFile(file.get(), buf, static_cast<DWORD>(strnlen_s(buf, sizeof(buf))), nullptr, nullptr);
+//     WriteFile(file.get(), "\n", 1, nullptr, nullptr);
+//     WriteFile(file.get(), "255", 3, nullptr, nullptr);
+//     WriteFile(file.get(), "\n", 1, nullptr, nullptr);
+//     for (SIZE_T i = 0; i < recht.height(); ++i)
+//     {
+//         for (SIZE_T j = 0; j < recht.width(); ++j)
+//         {
+//             for (SIZE_T k = 0; k < 3; ++k)
+//             {
+//                 _itoa_s(reinterpret_cast<const UINT8 *>(recht.data())[i * recht.rowPitch() + j * 4 + k], buf,
+//                         sizeof(buf), 10);
+//                 WriteFile(file.get(), buf, static_cast<DWORD>(strnlen_s(buf, sizeof(buf))), nullptr, nullptr);
+//                 WriteFile(file.get(), "\n", 1, nullptr, nullptr);
+//             }
+//         }
+//     }
+// }

@@ -1,3 +1,11 @@
+#include <cstddef>
+#include <qimage.h>
+#include <qlabel.h>
+#include <qnamespace.h>
+#include <qpainter.h>
+#include <qtimer.h>
+#include <qwidget.h>
+#include <winsock.h>
 #define D3DCOMPILE_DEBUG 1
 
 #include "RechtRenderer.hpp"
@@ -18,56 +26,93 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "D3D12.lib")
 
-void writeImage(RechtData recht, LPCWSTR name)
-{
-    wil::unique_hfile file{CreateFileW(name, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL)};
-    // good practive would be to check the amount of written bytes, but knowing
-    // this will not be used later, i can't be bothered
-    WriteFile(file.get(), "P3\n", 3, nullptr, nullptr);
-    char buf[40];
-    _ui64toa_s(recht.width(), buf, sizeof(buf), 10);
-    WriteFile(file.get(), buf, static_cast<DWORD>(strnlen_s(buf, sizeof(buf))), nullptr, nullptr);
-    WriteFile(file.get(), "\n", 1, nullptr, nullptr);
-    _ui64toa_s(recht.height(), buf, sizeof(buf), 10);
-    WriteFile(file.get(), buf, static_cast<DWORD>(strnlen_s(buf, sizeof(buf))), nullptr, nullptr);
-    WriteFile(file.get(), "\n", 1, nullptr, nullptr);
-    WriteFile(file.get(), "255", 3, nullptr, nullptr);
-    WriteFile(file.get(), "\n", 1, nullptr, nullptr);
-    for (SIZE_T i = 0; i < recht.height(); ++i)
-    {
-        for (SIZE_T j = 0; j < recht.width(); ++j)
-        {
-            for (SIZE_T k = 0; k < 3; ++k)
-            {
-                _itoa_s(reinterpret_cast<const UINT8 *>(recht.data())[i * recht.rowPitch() + j * 4 + k], buf,
-                        sizeof(buf), 10);
-                WriteFile(file.get(), buf, static_cast<DWORD>(strnlen_s(buf, sizeof(buf))), nullptr, nullptr);
-                WriteFile(file.get(), "\n", 1, nullptr, nullptr);
-            }
-        }
-    }
-}
+#include <QStatusBar>
+#include <QtWidgets>
+#include <qgraphicsitem.h>
+#include <qgraphicsview.h>
+#include <qmainwindow.h>
+#include <qpixmap.h>
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
+class DX12Viewport : public QWidget
 {
-    UNREFERENCED_PARAMETER(hInstance);
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(pCmdLine);
-    UNREFERENCED_PARAMETER(nCmdShow);
-
+    QImage m_renderedImage;
+    QTimer updateImageTimer;
     Renderer renderer;
-    RechtRenderer *rechtRenderer = renderer.AsRechtRenderer();
+    RechtData rechtData;
+    UINT64 frameIdx = 0;
 
-    writeImage(rechtRenderer->RenderSquare(randomColor()), L"out0.ppm");
-    writeImage(rechtRenderer->RenderSquare(randomColor()), L"out1.ppm");
-    writeImage(rechtRenderer->RenderSquare(randomColor()), L"out2.ppm");
-    writeImage(rechtRenderer->RenderSquare(randomColor()), L"out3.ppm");
-    writeImage(rechtRenderer->RenderSquare(randomColor()), L"out4.ppm");
-    writeImage(rechtRenderer->RenderSquare(randomColor()), L"out5.ppm");
-    writeImage(rechtRenderer->RenderSquare(randomColor()), L"out6.ppm");
-    writeImage(rechtRenderer->RenderSquare(randomColor()), L"out7.ppm");
-    writeImage(rechtRenderer->RenderSquare(randomColor()), L"out8.ppm");
-    writeImage(rechtRenderer->RenderSquare(randomColor()), L"out9.ppm");
+    constexpr static UINT CYCLE_DURATION = 1000;
 
-    return 0;
+  protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter{this};
+        painter.drawImage(rect(), m_renderedImage);
+    };
+
+  public:
+    DX12Viewport(QWidget *parent = nullptr)
+        : QWidget(parent), rechtData(renderer.AsRechtRenderer()->RenderSquare(randomColor()))
+    {
+        // setAlignment(Qt::AlignCenter);
+        setMinimumSize(1, 1);
+        QObject::connect(
+            &updateImageTimer, &QTimer::timeout, this,
+            [this]() {
+                static QPainter painter(this);
+                const FLOAT offset =
+                    std::abs(2.F * (frameIdx % CYCLE_DURATION) / static_cast<FLOAT>(CYCLE_DURATION) - 1.F);
+                const std::array<FLOAT, 4> color{offset, 1.F - offset, 0.F, 1.F};
+                rechtData = renderer.AsRechtRenderer()->RenderSquare(color, width(), height());
+                m_renderedImage = QImage{reinterpret_cast<const UCHAR *>(rechtData.data()),
+                                         static_cast<int>(rechtData.width()), static_cast<int>(rechtData.height()),
+                                         static_cast<qsizetype>(rechtData.rowPitch()), QImage::Format::Format_RGBA8888};
+                // setPixmap(QPixmap::fromImage(m_renderedImage));
+                ++frameIdx;
+                update();
+            },
+            Qt::DirectConnection);
+        updateImageTimer.start();
+    }
+
+    [[nodiscard]] UINT64 getFrameIdx() const
+    {
+        return frameIdx;
+    }
+};
+
+class DX12MainWindow : public QMainWindow
+{
+    DX12Viewport viewPort;
+    QLabel fpsMeter;
+    QTimer updateFpsTimer;
+
+  public:
+    DX12MainWindow(QWidget *parent = nullptr) : QMainWindow(parent), viewPort(this)
+    {
+        statusBar()->addPermanentWidget(&fpsMeter);
+        fpsMeter.setTextFormat(Qt::TextFormat::PlainText);
+        fpsMeter.setText("test");
+        QObject::connect(
+            &updateFpsTimer, &QTimer::timeout, this,
+            [this]() {
+                static UINT64 lastFrameIdx = 0;
+                fpsMeter.setNum(static_cast<int>(viewPort.getFrameIdx() - lastFrameIdx));
+                lastFrameIdx = viewPort.getFrameIdx();
+            },
+            Qt::DirectConnection);
+        updateFpsTimer.start(1000);
+        setCentralWidget(&viewPort);
+        resize(320, 240);
+        // setWindowTitle(QApplication::translate("toplevel", "Top-level widget"));
+        show();
+    }
+};
+
+int main(int argc, char *argv[])
+{
+
+    QApplication app(argc, argv);
+    DX12MainWindow window;
+
+    return app.exec();
 }

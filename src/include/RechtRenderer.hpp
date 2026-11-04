@@ -18,7 +18,7 @@ class RechtData
     UINT m_subresource{};
 
   public:
-    RechtData();
+    // RechtData();
 
     RechtData(const winrt::com_ptr<ID3D12Resource> &readbackBuffer, UINT subresource,
               const D3D12_PLACED_SUBRESOURCE_FOOTPRINT &footprint);
@@ -63,7 +63,7 @@ class RechtRenderer
     winrt::com_ptr<ID3D12DescriptorHeap> m_descriptorHeap;
     winrt::com_ptr<ID3D12Resource> m_readbackBuffer;
     winrt::com_ptr<ID3D12Fence> m_fence;
-    D3D12_PLACED_SUBRESOURCE_FOOTPRINT srcFootprint{};
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_srcFootprint{};
     D3D12_CPU_DESCRIPTOR_HANDLE m_rtvHandle{};
     D3D12_RESOURCE_BARRIER m_barrierToCopy{};
     D3D12_RESOURCE_BARRIER m_barrierToRender{};
@@ -71,8 +71,16 @@ class RechtRenderer
     D3D12_TEXTURE_COPY_LOCATION m_copyLocationDst{};
     wil::unique_event m_synchEvent;
 
+    UINT m_textureWidth = 256;
+    UINT m_textureHeight = 256;
+
+    D3D12_RESOURCE_DESC m_textureResourceDesc;
+    D3D12_RESOURCE_DESC m_readbackBufferDesc;
+
+    inline void allocateTextureMemory();
   public:
     RechtRenderer(ID3D12Device *d3d12device, ID3D12CommandAllocator *commandAllocator,
                   ID3D12CommandQueue *commandQueue);
-    [[nodiscard]] RechtData RenderSquare(std::span<const FLOAT, 4> color) const;
+    [[nodiscard]] RechtData RenderSquare(std::span<const FLOAT, 4> color);
+    [[nodiscard]] RechtData RenderSquare(std::span<const FLOAT, 4> color, UINT width, UINT height);
 };
