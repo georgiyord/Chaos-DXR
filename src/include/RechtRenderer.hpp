@@ -69,6 +69,7 @@ class RechtRenderer
     D3D12_RESOURCE_BARRIER m_barrierToRender{};
     D3D12_TEXTURE_COPY_LOCATION m_copyLocationSrc{};
     D3D12_TEXTURE_COPY_LOCATION m_copyLocationDst{};
+    winrt::com_ptr<ID3D12GraphicsCommandList> m_graphicsCommandList;
     wil::unique_event m_synchEvent;
 
     UINT m_textureWidth = 256;
@@ -78,6 +79,7 @@ class RechtRenderer
     D3D12_RESOURCE_DESC m_readbackBufferDesc;
 
     inline void allocateTextureMemory();
+
   public:
     RechtRenderer(ID3D12Device *d3d12device, ID3D12CommandAllocator *commandAllocator,
                   ID3D12CommandQueue *commandQueue);

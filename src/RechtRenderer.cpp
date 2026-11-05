@@ -3,6 +3,7 @@
 #include <array>
 #include <combaseapi.h>
 #include <cstdint>
+#include <d3d12.h>
 #include <dxgicommon.h>
 #include <dxgiformat.h>
 #include <iterator>
@@ -123,8 +124,8 @@ inline void RechtRenderer::allocateTextureMemory()
     };
 
     THROW_IF_FAILED(m_d3d12device->CreateCommittedResource(&readbackBufferProperties, D3D12_HEAP_FLAG_NONE,
-                                                           &m_readbackBufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
-                                                           IID_PPV_ARGS(m_readbackBuffer.put())));
+                                                           &m_readbackBufferDesc, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                           nullptr, IID_PPV_ARGS(m_readbackBuffer.put())));
     m_barrierToRender = {
         .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
         .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
@@ -171,7 +172,8 @@ RechtRenderer::RechtRenderer(ID3D12Device *d3d12device, ID3D12CommandAllocator *
 
     THROW_IF_FAILED(m_d3d12device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.put())));
 
-
+    THROW_IF_FAILED(m_d3d12device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(),
+                                                     nullptr, IID_PPV_ARGS(m_graphicsCommandList.put())));
     m_synchEvent.create();
 }
 
@@ -188,21 +190,16 @@ RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color, UINT widt
 
 RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color)
 {
-    std::array<ID3D12CommandList *, 1> ppCommandLists{};
-    winrt::com_ptr<ID3D12GraphicsCommandList> graphicsCommandList;
-    THROW_IF_FAILED(m_d3d12device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(),
-                                                     nullptr, IID_PPV_ARGS(graphicsCommandList.put())));
-
-    graphicsCommandList->OMSetRenderTargets(1, &m_rtvHandle, FALSE, nullptr);
-    graphicsCommandList->ClearRenderTargetView(m_rtvHandle, color.data(), 0, nullptr);
-    graphicsCommandList->ResourceBarrier(1, &m_barrierToCopy);
-    graphicsCommandList->CopyTextureRegion(&m_copyLocationDst, 0, 0, 0, &m_copyLocationSrc, nullptr);
-    graphicsCommandList->ResourceBarrier(1, &m_barrierToRender);
-    THROW_IF_FAILED(graphicsCommandList->Close());
-    ppCommandLists[0] = graphicsCommandList.get();
+    m_graphicsCommandList->OMSetRenderTargets(1, &m_rtvHandle, FALSE, nullptr);
+    m_graphicsCommandList->ClearRenderTargetView(m_rtvHandle, color.data(), 0, nullptr);
+    m_graphicsCommandList->ResourceBarrier(1, &m_barrierToCopy);
+    m_graphicsCommandList->CopyTextureRegion(&m_copyLocationDst, 0, 0, 0, &m_copyLocationSrc, nullptr);
+    m_graphicsCommandList->ResourceBarrier(1, &m_barrierToRender);
+    THROW_IF_FAILED(m_graphicsCommandList->Close());
 
     m_fence->Signal(0);
-    m_commandQueue->ExecuteCommandLists(std::size(ppCommandLists), ppCommandLists.data());
+    ID3D12GraphicsCommandList* tmp_commandLists = m_graphicsCommandList.get();
+    m_commandQueue->ExecuteCommandLists(1, reinterpret_cast<ID3D12CommandList**>(&tmp_commandLists));
 
     THROW_IF_FAILED(m_commandQueue->Signal(m_fence.get(), 1));
 
@@ -217,6 +214,7 @@ RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color)
     }
 
     m_commandAllocator->Reset();
+    m_graphicsCommandList->Reset(m_commandAllocator.Get(), nullptr);
 
     RechtData recht(m_readbackBuffer, 0, m_srcFootprint);
     return recht;
