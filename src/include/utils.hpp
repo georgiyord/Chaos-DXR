@@ -1,6 +1,9 @@
 #pragma once
 
+#include <array>
+#include <basetsd.h>
 #include <comdef.h>
+#include <minwindef.h>
 #include <random>
 #include <windows.h>
 #include <winrt/base.h>
@@ -97,3 +100,37 @@ template <typename T> class access_ptr
 //         }
 //     }
 // }
+
+template <UINT64 Capacity> class UINTRingBuffer
+{
+    std::array<UINT64, Capacity> m_buf{};
+    UINT64 m_size = 0;
+    UINT64 last = 0;
+
+  public:
+    void push(UINT64 x)
+    {
+        if (m_size >= Capacity) [[likely]]
+        {
+            ++last;
+            last = last >= Capacity ? 0 : last;
+            m_buf[last] = x;
+        }
+        else
+        {
+            ++last;
+            m_buf[m_size++] = x;
+        }
+    }
+
+    // vulnerable to overflow. not an issue for use case
+    UINT64 average()
+    {
+        UINT64 result = 0;
+        for (UINT64 i = 0; i < m_size; ++i)
+        {
+            result += m_buf[i];
+        }
+        return result / m_size;
+    }
+};

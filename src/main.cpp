@@ -85,19 +85,26 @@ class DX12MainWindow : public QMainWindow
     DX12Viewport viewPort;
     QLabel fpsMeter;
     QTimer updateFpsTimer;
+    constexpr static UINT64 averageFpsBufferCapacity = 10;
+    UINTRingBuffer<averageFpsBufferCapacity> averageFpsBuffer{};
 
   public:
     DX12MainWindow(QWidget *parent = nullptr) : QMainWindow(parent), viewPort(this)
     {
         statusBar()->addPermanentWidget(&fpsMeter);
         fpsMeter.setTextFormat(Qt::TextFormat::PlainText);
-        fpsMeter.setText("test");
         QObject::connect(
             &updateFpsTimer, &QTimer::timeout, this,
             [this]() {
                 static UINT64 lastFrameIdx = 0;
-                fpsMeter.setNum(static_cast<int>(viewPort.getFrameIdx() - lastFrameIdx));
+                const UINT64 frames = viewPort.getFrameIdx() - lastFrameIdx;
                 lastFrameIdx = viewPort.getFrameIdx();
+                averageFpsBuffer.push(frames);
+                QString str{"FPS: "};
+                str.append(QString::number(frames));
+                str.append(" | Average FPS: ");
+                str.append(QString::number(averageFpsBuffer.average()));
+                fpsMeter.setText(str);
             },
             Qt::DirectConnection);
         updateFpsTimer.start(1000);
