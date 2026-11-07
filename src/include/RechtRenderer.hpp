@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Renderer.hpp"
 #include "utils.hpp"
 #include <basetsd.h>
 #include <d3d12.h>
@@ -53,12 +54,9 @@ class RechtData
     }
 };
 
-class RechtRenderer
+class RechtRenderer : public Renderer
 {
   private:
-    access_ptr<ID3D12Device> m_d3d12device;
-    access_ptr<ID3D12CommandAllocator> m_commandAllocator;
-    access_ptr<ID3D12CommandQueue> m_commandQueue;
     winrt::com_ptr<ID3D12Resource> m_textureResource;
     winrt::com_ptr<ID3D12DescriptorHeap> m_descriptorHeap;
     winrt::com_ptr<ID3D12Resource> m_readbackBuffer;
@@ -81,8 +79,7 @@ class RechtRenderer
     inline void allocateTextureMemory();
 
   public:
-    RechtRenderer(ID3D12Device *d3d12device, ID3D12CommandAllocator *commandAllocator,
-                  ID3D12CommandQueue *commandQueue);
+    RechtRenderer(HWND handle);
     [[nodiscard]] RechtData RenderSquare(std::span<const FLOAT, 4> color);
     [[nodiscard]] RechtData RenderSquare(std::span<const FLOAT, 4> color, UINT width, UINT height);
 };

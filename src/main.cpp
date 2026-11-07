@@ -37,7 +37,7 @@ class DX12Viewport : public QWidget
 {
     QImage m_renderedImage;
     QTimer updateImageTimer;
-    Renderer renderer;
+    RechtRenderer renderer;
     RechtData rechtData;
     UINT64 frameIdx = 0;
 
@@ -51,7 +51,7 @@ class DX12Viewport : public QWidget
 
   public:
     DX12Viewport(QWidget *parent = nullptr)
-        : QWidget(parent), rechtData(renderer.AsRechtRenderer()->RenderSquare(randomColor()))
+        : QWidget(parent), renderer(reinterpret_cast<HWND>(winId())), rechtData(renderer.RenderSquare(randomColor()))
     {
         // setAlignment(Qt::AlignCenter);
         setMinimumSize(1, 1);
@@ -62,7 +62,7 @@ class DX12Viewport : public QWidget
                 const FLOAT offset =
                     std::abs(2.F * (frameIdx % CYCLE_DURATION) / static_cast<FLOAT>(CYCLE_DURATION) - 1.F);
                 const std::array<FLOAT, 4> color{offset, 1.F - offset, 0.F, 1.F};
-                rechtData = renderer.AsRechtRenderer()->RenderSquare(color, width(), height());
+                rechtData = renderer.RenderSquare(color, width(), height());
                 m_renderedImage = QImage{reinterpret_cast<const UCHAR *>(rechtData.data()),
                                          static_cast<int>(rechtData.width()), static_cast<int>(rechtData.height()),
                                          static_cast<qsizetype>(rechtData.rowPitch()), QImage::Format::Format_RGBA8888};

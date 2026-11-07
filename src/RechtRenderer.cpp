@@ -1,4 +1,5 @@
 #include "RechtRenderer.hpp"
+#include "Renderer.hpp"
 #include "utils.hpp"
 #include <array>
 #include <combaseapi.h>
@@ -96,14 +97,14 @@ inline void RechtRenderer::allocateTextureMemory()
         .Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
     };
 
-    THROW_IF_FAILED(m_d3d12device->CreateCommittedResource(&textureHeapProperties, D3D12_HEAP_FLAG_NONE,
+    THROW_IF_FAILED(get_d3d12device()->CreateCommittedResource(&textureHeapProperties, D3D12_HEAP_FLAG_NONE,
                                                            &m_textureResourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET,
                                                            nullptr, IID_PPV_ARGS(m_textureResource.put())));
 
-    m_d3d12device->CreateRenderTargetView(m_textureResource.get(), nullptr, m_rtvHandle);
+    get_d3d12device()->CreateRenderTargetView(m_textureResource.get(), nullptr, m_rtvHandle);
 
     UINT64 bufferSize{};
-    m_d3d12device->GetCopyableFootprints(&m_textureResourceDesc, 0, 1, 0, &m_srcFootprint, nullptr, nullptr,
+    get_d3d12device()->GetCopyableFootprints(&m_textureResourceDesc, 0, 1, 0, &m_srcFootprint, nullptr, nullptr,
                                          &bufferSize);
 
     m_readbackBufferDesc = {
@@ -123,7 +124,7 @@ inline void RechtRenderer::allocateTextureMemory()
         .Flags = D3D12_RESOURCE_FLAG_NONE,
     };
 
-    THROW_IF_FAILED(m_d3d12device->CreateCommittedResource(&readbackBufferProperties, D3D12_HEAP_FLAG_NONE,
+    THROW_IF_FAILED(get_d3d12device()->CreateCommittedResource(&readbackBufferProperties, D3D12_HEAP_FLAG_NONE,
                                                            &m_readbackBufferDesc, D3D12_RESOURCE_STATE_COPY_DEST,
                                                            nullptr, IID_PPV_ARGS(m_readbackBuffer.put())));
     m_barrierToRender = {
@@ -162,17 +163,15 @@ inline void RechtRenderer::allocateTextureMemory()
     };
 }
 
-RechtRenderer::RechtRenderer(ID3D12Device *d3d12device, ID3D12CommandAllocator *commandAllocator,
-                             ID3D12CommandQueue *commandQueue)
-    : m_d3d12device(d3d12device), m_commandAllocator(commandAllocator), m_commandQueue(commandQueue)
+RechtRenderer::RechtRenderer(HWND handle) : Renderer(handle)
 {
-    THROW_IF_FAILED(m_d3d12device->CreateDescriptorHeap(&rtvDescriber, IID_PPV_ARGS(m_descriptorHeap.put())));
+    THROW_IF_FAILED(get_d3d12device()->CreateDescriptorHeap(&rtvDescriber, IID_PPV_ARGS(m_descriptorHeap.put())));
     m_rtvHandle = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
     allocateTextureMemory();
 
-    THROW_IF_FAILED(m_d3d12device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.put())));
+    THROW_IF_FAILED(get_d3d12device()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.put())));
 
-    THROW_IF_FAILED(m_d3d12device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(),
+    THROW_IF_FAILED(get_d3d12device()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, get_commandAllocator().get(),
                                                      nullptr, IID_PPV_ARGS(m_graphicsCommandList.put())));
     m_synchEvent.create();
 }
@@ -199,9 +198,9 @@ RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color)
 
     m_fence->Signal(0);
     ID3D12GraphicsCommandList* tmp_commandLists = m_graphicsCommandList.get();
-    m_commandQueue->ExecuteCommandLists(1, reinterpret_cast<ID3D12CommandList**>(&tmp_commandLists));
+    get_commandQueue()->ExecuteCommandLists(1, reinterpret_cast<ID3D12CommandList**>(&tmp_commandLists));
 
-    THROW_IF_FAILED(m_commandQueue->Signal(m_fence.get(), 1));
+    THROW_IF_FAILED(get_commandQueue()->Signal(m_fence.get(), 1));
 
     if (m_fence->GetCompletedValue() < 1)
     {
@@ -213,8 +212,8 @@ RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color)
         }
     }
 
-    m_commandAllocator->Reset();
-    m_graphicsCommandList->Reset(m_commandAllocator.Get(), nullptr);
+    get_commandAllocator()->Reset();
+    m_graphicsCommandList->Reset(get_commandAllocator().get(), nullptr);
 
     RechtData recht(m_readbackBuffer, 0, m_srcFootprint);
     return recht;
