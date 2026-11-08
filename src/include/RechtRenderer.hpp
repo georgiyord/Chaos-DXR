@@ -1,12 +1,12 @@
 #pragma once
 
 #include "Renderer.hpp"
-#include "utils.hpp"
 #include <basetsd.h>
 #include <d3d12.h>
 #include <minwindef.h>
 #include <span>
 #include <wil/resource.h>
+#include <windef.h>
 #include <winrt/base.h>
 
 class RechtData

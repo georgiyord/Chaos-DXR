@@ -1,37 +1,30 @@
-#include <cstddef>
+#include "RechtRenderer.hpp"
+#include "utils.hpp"
+#include <QStatusBar>
+#include <QtCore/qobjectdefs.h>
+#include <array>
+#include <basetsd.h>
+#include <cmath>
+#include <cstdlib>
+#include <minwindef.h>
+#include <qapplication.h>
 #include <qimage.h>
 #include <qlabel.h>
+#include <qmainwindow.h>
 #include <qnamespace.h>
+#include <qobject.h>
 #include <qpainter.h>
+#include <qstring.h>
 #include <qtimer.h>
+#include <qtypeinfo.h>
+#include <qtypes.h>
 #include <qwidget.h>
-#include <winsock.h>
-#define D3DCOMPILE_DEBUG 1
-
-#include "RechtRenderer.hpp"
-#include "Renderer.hpp"
-#include "utils.hpp"
-#include <basetsd.h>
-#include <cstdlib>
-#include <cstring>
-#include <fileapi.h>
-#include <handleapi.h>
-#include <minwindef.h>
+#include <qwindowdefs_win.h>
 #include <span>
-#include <strsafe.h>
-#include <wil/resource.h>
-#include <wil/wistd_type_traits.h>
-#include <windows.h>
+#include <winscard.h>
 
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "D3D12.lib")
-
-#include <QStatusBar>
-#include <QtWidgets>
-#include <qgraphicsitem.h>
-#include <qgraphicsview.h>
-#include <qmainwindow.h>
-#include <qpixmap.h>
 
 class DX12Viewport : public QWidget
 {

@@ -1,12 +1,12 @@
 #include "Renderer.hpp"
-#include <__msvc_ostream.hpp>
 #include <combaseapi.h>
-#include <d3dcommon.h>
 #include <dxgi.h>
 #include <dxgi1_2.h>
 #include <dxgi1_3.h>
 #include <dxgi1_4.h>
 #include <dxgiformat.h>
+#include <dxgitype.h>
+#include <minwindef.h>
 #include <wil/result_macros.h>
 #include <winrt/base.h>
 

@@ -1,13 +1,10 @@
 #include "RechtRenderer.hpp"
 #include "Renderer.hpp"
-#include "utils.hpp"
-#include <array>
 #include <combaseapi.h>
 #include <cstdint>
 #include <d3d12.h>
 #include <dxgicommon.h>
 #include <dxgiformat.h>
-#include <iterator>
 #include <stdexcept>
 #include <strsafe.h>
 #include <synchapi.h>
