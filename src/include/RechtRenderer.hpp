@@ -57,29 +57,31 @@ class RechtData
 class RechtRenderer : public Renderer
 {
   private:
-    winrt::com_ptr<ID3D12Resource> m_textureResource;
     winrt::com_ptr<ID3D12DescriptorHeap> m_descriptorHeap;
-    winrt::com_ptr<ID3D12Resource> m_readbackBuffer;
     winrt::com_ptr<ID3D12Fence> m_fence;
-    D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_srcFootprint{};
-    D3D12_CPU_DESCRIPTOR_HANDLE m_rtvHandle{};
-    D3D12_RESOURCE_BARRIER m_barrierToCopy{};
+    D3D12_CPU_DESCRIPTOR_HANDLE m_rtvDescHandle{};
+    UINT m_rtvDescriptorSize{};
+    D3D12_RESOURCE_BARRIER m_barrierToPresent{};
     D3D12_RESOURCE_BARRIER m_barrierToRender{};
-    D3D12_TEXTURE_COPY_LOCATION m_copyLocationSrc{};
-    D3D12_TEXTURE_COPY_LOCATION m_copyLocationDst{};
     winrt::com_ptr<ID3D12GraphicsCommandList> m_graphicsCommandList;
     wil::unique_event m_synchEvent;
 
     UINT m_textureWidth = 256;
     UINT m_textureHeight = 256;
 
-    D3D12_RESOURCE_DESC m_textureResourceDesc;
-    D3D12_RESOURCE_DESC m_readbackBufferDesc;
+    void bindSwapChainBufsTosDescriptors();
 
-    inline void allocateTextureMemory();
+    template <auto DrawCallable> void renderVariation(std::span<const FLOAT, 4> color, UINT width, UINT height);
+    template <auto DrawCallable> void renderVariation(std::span<const FLOAT, 4> color);
+
+    void drawRecht(std::span<const FLOAT, 4> color, D3D12_CPU_DESCRIPTOR_HANDLE rtvDescHandle);
+    void drawMovingBar(std::span<const FLOAT, 4> color, D3D12_CPU_DESCRIPTOR_HANDLE rtvDescHandle);
 
   public:
     RechtRenderer(HWND handle);
-    [[nodiscard]] RechtData RenderSquare(std::span<const FLOAT, 4> color);
-    [[nodiscard]] RechtData RenderSquare(std::span<const FLOAT, 4> color, UINT width, UINT height);
+
+    void renderRecht(std::span<const FLOAT, 4> color);
+    void renderRecht(std::span<const FLOAT, 4> color, UINT width, UINT height);
+    void renderMovingBar(std::span<const FLOAT, 4> color);
+    void renderMovingBar(std::span<const FLOAT, 4> color, UINT width, UINT height);
 };

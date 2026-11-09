@@ -2,109 +2,137 @@
 #include "utils.hpp"
 #include <QStatusBar>
 #include <QtCore/qobjectdefs.h>
-#include <array>
 #include <basetsd.h>
-#include <cmath>
-#include <cstdlib>
 #include <minwindef.h>
 #include <qapplication.h>
+#include <qdebug.h>
+#include <qevent.h>
 #include <qimage.h>
 #include <qlabel.h>
+#include <qlogging.h>
 #include <qmainwindow.h>
 #include <qnamespace.h>
 #include <qobject.h>
-#include <qpainter.h>
+#include <qsize.h>
 #include <qstring.h>
 #include <qtimer.h>
 #include <qtypeinfo.h>
-#include <qtypes.h>
 #include <qwidget.h>
+#include <qwindow.h>
 #include <qwindowdefs_win.h>
 #include <span>
-#include <winscard.h>
 
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "D3D12.lib")
+#pragma comment(lib, "RuntimeObject.lib") // winrt::com_ptr::as
 
-class DX12Viewport : public QWidget
+class DX12Viewport : public QWindow
 {
-    QImage m_renderedImage;
-    QTimer updateImageTimer;
     RechtRenderer renderer;
-    RechtData rechtData;
-    UINT64 frameIdx = 0;
+    QImage m_renderedImage;
+    QTimer *updateImageTimer;
+    QTimer *updateFpsTimer;
+    constexpr static UINT64 averageFpsBufferCapacity = 10;
+    UINTRingBuffer<averageFpsBufferCapacity> averageFpsBuffer{};
+    UINT averageFPS = 1;
+    UINT currentFPS = 0;
+    HSVGradientColor gradientColor;
 
     constexpr static UINT CYCLE_DURATION = 1000;
 
-  protected:
-    void paintEvent(QPaintEvent *) override {
-        QPainter painter{this};
-        painter.drawImage(rect(), m_renderedImage);
-    };
-
   public:
-    DX12Viewport(QWidget *parent = nullptr)
-        : QWidget(parent), renderer(reinterpret_cast<HWND>(winId())), rechtData(renderer.RenderSquare(randomColor()))
+    DX12Viewport()
+        : renderer(reinterpret_cast<HWND>(winId())), updateImageTimer(new QTimer(this)),
+          updateFpsTimer(new QTimer(this))
     {
-        // setAlignment(Qt::AlignCenter);
-        setMinimumSize(1, 1);
         QObject::connect(
-            &updateImageTimer, &QTimer::timeout, this,
+            updateImageTimer, &QTimer::timeout, this,
             [this]() {
-                static QPainter painter(this);
-                const FLOAT offset =
-                    std::abs(2.F * (frameIdx % CYCLE_DURATION) / static_cast<FLOAT>(CYCLE_DURATION) - 1.F);
-                const std::array<FLOAT, 4> color{offset, 1.F - offset, 0.F, 1.F};
-                rechtData = renderer.RenderSquare(color, width(), height());
-                m_renderedImage = QImage{reinterpret_cast<const UCHAR *>(rechtData.data()),
-                                         static_cast<int>(rechtData.width()), static_cast<int>(rechtData.height()),
-                                         static_cast<qsizetype>(rechtData.rowPitch()), QImage::Format::Format_RGBA8888};
-                // setPixmap(QPixmap::fromImage(m_renderedImage));
-                ++frameIdx;
-                update();
+                // const FLOAT offset =
+                //     std::abs(2.F * (frameIdx % CYCLE_DURATION) / static_cast<FLOAT>(CYCLE_DURATION) - 1.F);
+                // const std::array<FLOAT, 4> color{
+                //     offset,
+                //     1.F - offset,
+                //     0.F,
+                //     1.F,
+                // };
+                // const std::array<FLOAT, 4> color{
+                //     static_cast<float>(frameIdx % 3 == 0),
+                //     static_cast<float>(frameIdx % 3 == 1),
+                //     static_cast<float>(frameIdx % 3 == 2),
+                //     1.F,
+                // };
+                renderer.renderMovingBar(gradientColor.getColorView(), width(), height());
+                // renderer.renderRecht(gradientColor.getColorView(), width(), height());
             },
             Qt::DirectConnection);
-        updateImageTimer.start();
+        updateImageTimer->start();
+        QObject::connect(
+            updateFpsTimer, &QTimer::timeout, this,
+            [this]() {
+                static SIZE_T lastFrameIdx = 0;
+                currentFPS = renderer.get_frameIdx() - lastFrameIdx;
+                lastFrameIdx = renderer.get_frameIdx();
+                averageFpsBuffer.push(currentFPS);
+                averageFPS = averageFpsBuffer.average();
+                gradientColor.updateDelta(1.F / averageFPS);
+            },
+            Qt::DirectConnection);
+        updateFpsTimer->start(1000);
+        updateImageTimer->start();
     }
 
-    [[nodiscard]] UINT64 getFrameIdx() const
+    [[nodiscard]] SIZE_T getFPS() const
     {
-        return frameIdx;
+        return currentFPS;
+    }
+    [[nodiscard]] UINT getAverageFPS() const
+    {
+        return averageFPS;
+    }
+
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QWindow::resizeEvent(event);
+        qDebug() << "QWindow size:" << event->size();
     }
 };
 
 class DX12MainWindow : public QMainWindow
 {
     DX12Viewport viewPort;
-    QLabel fpsMeter;
-    QTimer updateFpsTimer;
-    constexpr static UINT64 averageFpsBufferCapacity = 10;
-    UINTRingBuffer<averageFpsBufferCapacity> averageFpsBuffer{};
+    QWidget *viewPortContainer;
+    QLabel *fpsMeter;
+    QTimer *updateFpsTimer;
 
   public:
-    DX12MainWindow(QWidget *parent = nullptr) : QMainWindow(parent), viewPort(this)
+    DX12MainWindow(QWidget *parent = nullptr)
+        : QMainWindow(parent), viewPortContainer(QWidget::createWindowContainer(&viewPort, this)),
+          fpsMeter(new QLabel(this)), updateFpsTimer(new QTimer(this))
     {
-        statusBar()->addPermanentWidget(&fpsMeter);
-        fpsMeter.setTextFormat(Qt::TextFormat::PlainText);
+        statusBar()->addPermanentWidget(fpsMeter);
+        fpsMeter->setTextFormat(Qt::TextFormat::PlainText);
         QObject::connect(
-            &updateFpsTimer, &QTimer::timeout, this,
+            updateFpsTimer, &QTimer::timeout, this,
             [this]() {
-                static UINT64 lastFrameIdx = 0;
-                const UINT64 frames = viewPort.getFrameIdx() - lastFrameIdx;
-                lastFrameIdx = viewPort.getFrameIdx();
-                averageFpsBuffer.push(frames);
                 QString str{"FPS: "};
-                str.append(QString::number(frames));
+                str.append(QString::number(viewPort.getFPS()));
                 str.append(" | Average FPS: ");
-                str.append(QString::number(averageFpsBuffer.average()));
-                fpsMeter.setText(str);
+                str.append(QString::number(viewPort.getAverageFPS()));
+                fpsMeter->setText(str);
             },
             Qt::DirectConnection);
-        updateFpsTimer.start(1000);
-        setCentralWidget(&viewPort);
+        updateFpsTimer->start(1000);
+        setCentralWidget(viewPortContainer);
         resize(320, 240);
-        // setWindowTitle(QApplication::translate("toplevel", "Top-level widget"));
+        setWindowTitle("DX12 Demo");
         show();
+    }
+
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QWidget::resizeEvent(event);
+        qDebug() << "QWindow container size:" << viewPortContainer->size();
     }
 };
 

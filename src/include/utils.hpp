@@ -5,6 +5,7 @@
 #include <comdef.h>
 #include <minwindef.h>
 #include <random>
+#include <utility>
 #include <windows.h>
 #include <winrt/base.h>
 #include <wrl/client.h>
@@ -70,6 +71,93 @@ template <typename T> class access_ptr
         return {1.F, 0, offset, 1.F};
     }
 }
+
+class HSVGradientColor
+{
+    std::array<FLOAT, 4> m_color{1.F, 0.F, 0.F, 1.F};
+    UINT8 m_sextant = 0;
+    FLOAT m_delta;
+
+    void updateGradient()
+    {
+        assert(m_sextant >= 0 && m_sextant <= 5);
+        const FLOAT floor = std::floor(m_delta);
+        m_delta -= floor;
+        m_sextant += static_cast<UINT8>(floor);
+        m_sextant %= 6;
+        switch (m_sextant)
+        {
+        case 0:
+            m_color[1] += m_delta;
+            if (m_color[1] > 1.F)
+            {
+                m_color[0] -= m_color[1] - 1.F;
+                m_color[1] = 1.F;
+                ++m_sextant;
+            }
+            return;
+        case 1:
+            m_color[0] -= m_delta;
+            if (m_color[0] < 0.F)
+            {
+                m_color[2] -= m_color[0];
+                m_color[0] = 0.F;
+                ++m_sextant;
+            }
+            return;
+        case 2:
+            m_color[2] += m_delta;
+            if (m_color[2] > 1.F)
+            {
+                m_color[1] -= m_color[2] - 1.F;
+                m_color[2] = 1.F;
+                ++m_sextant;
+            }
+            return;
+        case 3:
+            m_color[1] -= m_delta;
+            if (m_color[1] < 0.F)
+            {
+                m_color[0] -= m_color[1];
+                m_color[1] = 0.F;
+                ++m_sextant;
+            }
+            return;
+        case 4:
+            m_color[0] += m_delta;
+            if (m_color[0] > 1.F)
+            {
+                m_color[2] -= m_color[0] - 1.F;
+                m_color[0] = 1.F;
+                ++m_sextant;
+            }
+            return;
+        case 5:
+            m_color[2] -= m_delta;
+            if (m_color[2] < 0.F)
+            {
+                m_color[1] -= m_color[2];
+                m_color[2] = 0.F;
+                m_sextant = 0;
+            }
+            return;
+        default:
+            std::unreachable();
+        }
+    }
+
+  public:
+    HSVGradientColor(FLOAT m_delta = 0.F) : m_delta(m_delta) {};
+    [[nodiscard]] constexpr std::span<FLOAT, 4> getColorView()
+    {
+        updateGradient();
+        return m_color;
+    }
+    constexpr void updateDelta(FLOAT delta)
+    {
+        m_delta = delta;
+    }
+};
 
 // void writeImage(RechtData recht, LPCWSTR name)
 // {

@@ -1,16 +1,21 @@
 #include "RechtRenderer.hpp"
 #include "Renderer.hpp"
+#include <array>
 #include <combaseapi.h>
 #include <cstdint>
 #include <d3d12.h>
-#include <dxgicommon.h>
+#include <dxgi.h>
+#include <dxgi1_2.h>
+#include <dxgi1_4.h>
 #include <dxgiformat.h>
+#include <minwindef.h>
 #include <stdexcept>
 #include <strsafe.h>
 #include <synchapi.h>
 #include <utility>
 #include <wil/result_macros.h>
 #include <winerror.h>
+#include <winrt/base.h>
 
 RechtData::RechtData(const winrt::com_ptr<ID3D12Resource> &readbackBuffer, const UINT subresource,
                      const D3D12_PLACED_SUBRESOURCE_FOOTPRINT &footprint)
@@ -54,148 +59,118 @@ enum class FENCE_STATUS : uint_fast8_t
 
 constexpr D3D12_DESCRIPTOR_HEAP_DESC rtvDescriber = {
     .Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
-    .NumDescriptors = 1,
+    .NumDescriptors = 2,
     .Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
     .NodeMask = 0,
 };
 
-constexpr D3D12_HEAP_PROPERTIES textureHeapProperties = {
-    .Type = D3D12_HEAP_TYPE_DEFAULT,
-    .CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
-    .MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN,
-    .CreationNodeMask = 0,
-    .VisibleNodeMask = 0,
-};
-
-constexpr D3D12_HEAP_PROPERTIES readbackBufferProperties = {
-    .Type = D3D12_HEAP_TYPE_READBACK,
-    .CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
-    .MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN,
-    .CreationNodeMask = 0,
-    .VisibleNodeMask = 0,
-};
-
-inline void RechtRenderer::allocateTextureMemory()
+inline void RechtRenderer::bindSwapChainBufsTosDescriptors()
 {
-    m_textureResourceDesc = {
-        .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-        .Alignment = 0, // Automatic alignment
-        .Width = m_textureWidth,
-        .Height = m_textureHeight,
-        .DepthOrArraySize = 1, // Number of 2D textures stored in the object
-        .MipLevels = 1,        // Mipmap levels, 0 is automatic, 1 is base-case
-        .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
-        .SampleDesc =
-            DXGI_SAMPLE_DESC{
-                .Count = 1,
-                .Quality = 0,
-            },
-        .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
-        .Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
-    };
+    winrt::com_ptr<ID3D12Resource> swapChainBuffer;
+    D3D12_CPU_DESCRIPTOR_HANDLE rtvDescHandle{m_rtvDescHandle};
 
-    THROW_IF_FAILED(get_d3d12device()->CreateCommittedResource(&textureHeapProperties, D3D12_HEAP_FLAG_NONE,
-                                                           &m_textureResourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                           nullptr, IID_PPV_ARGS(m_textureResource.put())));
+    THROW_IF_FAILED(get_swapChain()->GetBuffer(0, IID_PPV_ARGS(swapChainBuffer.put())));
+    THROW_IF_FAILED(swapChainBuffer->SetName(L"Swap Chain buffer #1"));
+    get_d3d12device()->CreateRenderTargetView(swapChainBuffer.get(), nullptr, rtvDescHandle);
 
-    get_d3d12device()->CreateRenderTargetView(m_textureResource.get(), nullptr, m_rtvHandle);
+    rtvDescHandle.ptr += m_rtvDescriptorSize;
 
-    UINT64 bufferSize{};
-    get_d3d12device()->GetCopyableFootprints(&m_textureResourceDesc, 0, 1, 0, &m_srcFootprint, nullptr, nullptr,
-                                         &bufferSize);
+    THROW_IF_FAILED(get_swapChain()->GetBuffer(1, IID_PPV_ARGS(swapChainBuffer.put())));
+    THROW_IF_FAILED(swapChainBuffer->SetName(L"Swap Chain buffer #2"));
+    get_d3d12device()->CreateRenderTargetView(swapChainBuffer.get(), nullptr, rtvDescHandle);
+}
 
-    m_readbackBufferDesc = {
-        .Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
-        .Alignment = 0, // Automatic alignment
-        .Width = bufferSize,
-        .Height = 1,
-        .DepthOrArraySize = 1, // 1 needed for buffers
-        .MipLevels = 1,        // 1 needed for buffers
-        .Format = DXGI_FORMAT_UNKNOWN,
-        .SampleDesc =
-            DXGI_SAMPLE_DESC{
-                .Count = 1,
-                .Quality = 0,
-            },
-        .Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-        .Flags = D3D12_RESOURCE_FLAG_NONE,
-    };
+RechtRenderer::RechtRenderer(HWND handle)
+    : Renderer(handle),
+      m_rtvDescriptorSize(get_d3d12device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV))
+{
+    THROW_IF_FAILED(get_d3d12device()->CreateDescriptorHeap(&rtvDescriber, IID_PPV_ARGS(m_descriptorHeap.put())));
+    m_rtvDescHandle = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+    bindSwapChainBufsTosDescriptors();
 
-    THROW_IF_FAILED(get_d3d12device()->CreateCommittedResource(&readbackBufferProperties, D3D12_HEAP_FLAG_NONE,
-                                                           &m_readbackBufferDesc, D3D12_RESOURCE_STATE_COPY_DEST,
-                                                           nullptr, IID_PPV_ARGS(m_readbackBuffer.put())));
+    THROW_IF_FAILED(get_d3d12device()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.put())));
+
+    THROW_IF_FAILED(get_d3d12device()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                                         get_commandAllocator().get(), nullptr,
+                                                         IID_PPV_ARGS(m_graphicsCommandList.put())));
+    THROW_IF_FAILED(m_graphicsCommandList->SetName(L"Main Graphics Command List"));
+    m_synchEvent.create();
+
     m_barrierToRender = {
         .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
         .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
         .Transition =
             {
-                .pResource = m_textureResource.get(),
+                .pResource = nullptr,
                 .Subresource = 0,
-                .StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE,
+                .StateBefore = D3D12_RESOURCE_STATE_PRESENT,
                 .StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET,
             },
     };
-    m_barrierToCopy = {
+
+    m_barrierToPresent = {
         .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
         .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
         .Transition =
             {
-                .pResource = m_textureResource.get(),
+                .pResource = nullptr,
                 .Subresource = 0,
                 .StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET,
-                .StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE,
+                .StateAfter = D3D12_RESOURCE_STATE_PRESENT,
             },
     };
-
-    m_copyLocationSrc = {
-        .pResource = m_textureResource.get(),
-        .Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
-        .SubresourceIndex = 0,
-    };
-
-    m_copyLocationDst = {
-        .pResource = m_readbackBuffer.get(),
-        .Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
-        .PlacedFootprint = m_srcFootprint,
-    };
 }
 
-RechtRenderer::RechtRenderer(HWND handle) : Renderer(handle)
-{
-    THROW_IF_FAILED(get_d3d12device()->CreateDescriptorHeap(&rtvDescriber, IID_PPV_ARGS(m_descriptorHeap.put())));
-    m_rtvHandle = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
-    allocateTextureMemory();
-
-    THROW_IF_FAILED(get_d3d12device()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.put())));
-
-    THROW_IF_FAILED(get_d3d12device()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, get_commandAllocator().get(),
-                                                     nullptr, IID_PPV_ARGS(m_graphicsCommandList.put())));
-    m_synchEvent.create();
-}
-
-RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color, UINT width, UINT height)
+template <auto DrawCallable>
+void RechtRenderer::renderVariation(std::span<const FLOAT, 4> color, UINT width, UINT height)
 {
     if (width != m_textureWidth || height != m_textureHeight)
     {
         m_textureWidth = width;
         m_textureHeight = height;
-        allocateTextureMemory();
+
+        std::array<UINT, 2> creationNodeMask{0, 0};
+        std::array<IUnknown *, 2> pPresentQueue{get_commandQueue().get(), get_commandQueue().get()};
+        THROW_IF_FAILED(get_commandQueue()->Signal(m_fence.get(), 2));
+        if (m_fence->GetCompletedValue() < 2)
+        {
+            THROW_IF_FAILED(m_fence->SetEventOnCompletion(2, m_synchEvent.get()));
+            const DWORD result = WaitForSingleObject(m_synchEvent.get(), 10000);
+            if (result == WAIT_TIMEOUT)
+            {
+                throw std::runtime_error("Command queue fence timeout!");
+            }
+        }
+        THROW_IF_FAILED(get_swapChain()->ResizeBuffers1(2, width, height, DXGI_FORMAT_R8G8B8A8_UNORM,
+                                                        DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING, creationNodeMask.data(),
+                                                        pPresentQueue.data()));
+        bindSwapChainBufsTosDescriptors();
     }
-    return RenderSquare(color);
+    renderVariation<DrawCallable>(color);
 }
 
-RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color)
+template <auto DrawCallable> void RechtRenderer::renderVariation(std::span<const FLOAT, 4> color)
 {
-    m_graphicsCommandList->OMSetRenderTargets(1, &m_rtvHandle, FALSE, nullptr);
-    m_graphicsCommandList->ClearRenderTargetView(m_rtvHandle, color.data(), 0, nullptr);
-    m_graphicsCommandList->ResourceBarrier(1, &m_barrierToCopy);
-    m_graphicsCommandList->CopyTextureRegion(&m_copyLocationDst, 0, 0, 0, &m_copyLocationSrc, nullptr);
+    auto rtvDescHandle = m_rtvDescHandle;
+    winrt::com_ptr<ID3D12Resource> currentBuffer;
+    const UINT bufferIdx = get_swapChain()->GetCurrentBackBufferIndex();
+    rtvDescHandle.ptr += static_cast<SIZE_T>(m_rtvDescriptorSize) * bufferIdx;
+
+    get_swapChain()->GetBuffer(bufferIdx, IID_PPV_ARGS(currentBuffer.put()));
+    m_barrierToRender.Transition.pResource = currentBuffer.get();
+    m_barrierToPresent.Transition.pResource = currentBuffer.get();
+
     m_graphicsCommandList->ResourceBarrier(1, &m_barrierToRender);
+    m_graphicsCommandList->OMSetRenderTargets(1, &rtvDescHandle, FALSE, nullptr);
+
+    (this->*DrawCallable)(color, rtvDescHandle);
+
+    m_graphicsCommandList->ResourceBarrier(1, &m_barrierToPresent);
     THROW_IF_FAILED(m_graphicsCommandList->Close());
 
-    m_fence->Signal(0);
-    ID3D12GraphicsCommandList* tmp_commandLists = m_graphicsCommandList.get();
-    get_commandQueue()->ExecuteCommandLists(1, reinterpret_cast<ID3D12CommandList**>(&tmp_commandLists));
+    THROW_IF_FAILED(m_fence->Signal(0));
+    ID3D12GraphicsCommandList *tmp_commandLists = m_graphicsCommandList.get();
+    get_commandQueue()->ExecuteCommandLists(1, reinterpret_cast<ID3D12CommandList **>(&tmp_commandLists));
 
     THROW_IF_FAILED(get_commandQueue()->Signal(m_fence.get(), 1));
 
@@ -209,9 +184,64 @@ RechtData RechtRenderer::RenderSquare(std::span<const FLOAT, 4> color)
         }
     }
 
-    get_commandAllocator()->Reset();
-    m_graphicsCommandList->Reset(get_commandAllocator().get(), nullptr);
+    constexpr DXGI_PRESENT_PARAMETERS presentParams = {
+        .DirtyRectsCount = 0,
+        .pDirtyRects = nullptr,
+        .pScrollRect = nullptr,
+        .pScrollOffset = nullptr,
+    };
 
-    RechtData recht(m_readbackBuffer, 0, m_srcFootprint);
-    return recht;
+    THROW_IF_FAILED(get_swapChain()->Present1(0, DXGI_PRESENT_ALLOW_TEARING, &presentParams));
+
+    THROW_IF_FAILED(get_commandAllocator()->Reset());
+    THROW_IF_FAILED(m_graphicsCommandList->Reset(get_commandAllocator().get(), nullptr));
+
+    incrementFrameIdx();
+}
+
+void RechtRenderer::drawRecht(std::span<const FLOAT, 4> color, D3D12_CPU_DESCRIPTOR_HANDLE rtvDescHandle)
+{
+    m_graphicsCommandList->ClearRenderTargetView(rtvDescHandle, color.data(), 0, nullptr);
+}
+
+void RechtRenderer::drawMovingBar(std::span<const FLOAT, 4> color, D3D12_CPU_DESCRIPTOR_HANDLE rtvDescHandle)
+{
+    constexpr std::array<FLOAT, 4> black{0.F, 0.F, 0.F, 1.F};
+    m_graphicsCommandList->ClearRenderTargetView(rtvDescHandle, black.data(), 0, nullptr);
+
+    const UINT barWidth = m_textureWidth / 10;
+    if (barWidth == 0)
+    {
+        return;
+    }
+    const UINT barPos = get_frameIdx() % (2 * (m_textureWidth - barWidth));
+    const UINT maxLeft = m_textureWidth - barWidth;
+    const UINT left = barPos > maxLeft ? maxLeft - (barPos - maxLeft) : barPos;
+    const D3D12_RECT rect{
+        .left = static_cast<LONG>(left),
+        .top = 0,
+        .right = static_cast<LONG>(left + barWidth),
+        .bottom = static_cast<LONG>(m_textureHeight),
+    };
+    m_graphicsCommandList->ClearRenderTargetView(rtvDescHandle, color.data(), 1, &rect);
+}
+
+void RechtRenderer::renderRecht(std::span<const FLOAT, 4> color, UINT width, UINT height)
+{
+    renderVariation<&RechtRenderer::drawRecht>(color, width, height);
+}
+
+void RechtRenderer::renderMovingBar(std::span<const FLOAT, 4> color, UINT width, UINT height)
+{
+    renderVariation<&RechtRenderer::drawMovingBar>(color, width, height);
+}
+
+void RechtRenderer::renderRecht(std::span<const FLOAT, 4> color)
+{
+    renderVariation<&RechtRenderer::drawRecht>(color);
+}
+
+void RechtRenderer::renderMovingBar(std::span<const FLOAT, 4> color)
+{
+    renderVariation<&RechtRenderer::drawMovingBar>(color);
 }
