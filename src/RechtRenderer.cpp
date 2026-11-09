@@ -131,10 +131,12 @@ void RechtRenderer::renderVariation(std::span<const FLOAT, 4> color, UINT width,
 
         std::array<UINT, 2> creationNodeMask{0, 0};
         std::array<IUnknown *, 2> pPresentQueue{get_commandQueue().get(), get_commandQueue().get()};
-        THROW_IF_FAILED(get_commandQueue()->Signal(m_fence.get(), 2));
-        if (m_fence->GetCompletedValue() < 2)
+
+        const UINT64 fenceNextValue = m_fence->GetCompletedValue() + 1;
+        THROW_IF_FAILED(get_commandQueue()->Signal(m_fence.get(), fenceNextValue));
+        if (m_fence->GetCompletedValue() < fenceNextValue)
         {
-            THROW_IF_FAILED(m_fence->SetEventOnCompletion(2, m_synchEvent.get()));
+            THROW_IF_FAILED(m_fence->SetEventOnCompletion(fenceNextValue, m_synchEvent.get()));
             const DWORD result = WaitForSingleObject(m_synchEvent.get(), 10000);
             if (result == WAIT_TIMEOUT)
             {
@@ -168,15 +170,16 @@ template <auto DrawCallable> void RechtRenderer::renderVariation(std::span<const
     m_graphicsCommandList->ResourceBarrier(1, &m_barrierToPresent);
     THROW_IF_FAILED(m_graphicsCommandList->Close());
 
-    THROW_IF_FAILED(m_fence->Signal(0));
+    THROW_IF_FAILED(m_fence->Signal(m_fence->GetCompletedValue() + 1));
     ID3D12GraphicsCommandList *tmp_commandLists = m_graphicsCommandList.get();
     get_commandQueue()->ExecuteCommandLists(1, reinterpret_cast<ID3D12CommandList **>(&tmp_commandLists));
 
-    THROW_IF_FAILED(get_commandQueue()->Signal(m_fence.get(), 1));
+    const UINT64 fenceNextValue = m_fence->GetCompletedValue() + 1;
+    THROW_IF_FAILED(get_commandQueue()->Signal(m_fence.get(), fenceNextValue));
 
-    if (m_fence->GetCompletedValue() < 1)
+    if (m_fence->GetCompletedValue() < fenceNextValue)
     {
-        THROW_IF_FAILED(m_fence->SetEventOnCompletion(1, m_synchEvent.get()));
+        THROW_IF_FAILED(m_fence->SetEventOnCompletion(fenceNextValue, m_synchEvent.get()));
         const DWORD result = WaitForSingleObject(m_synchEvent.get(), 10000);
         if (result == WAIT_TIMEOUT)
         {
