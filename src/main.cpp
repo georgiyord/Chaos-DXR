@@ -1,10 +1,7 @@
 #include "MovingBarRenderer.hpp"
 #include "utils.hpp"
-#include <QStatusBar>
-#include <QtCore/qobjectdefs.h>
-#include <basetsd.h>
+#include <Windows.h>
 #include <memory>
-#include <minwindef.h>
 #include <qapplication.h>
 #include <qdebug.h>
 #include <qevent.h>
@@ -15,12 +12,11 @@
 #include <qnamespace.h>
 #include <qobject.h>
 #include <qsize.h>
+#include <qstatusbar.h>
 #include <qstring.h>
 #include <qtimer.h>
-#include <qtypeinfo.h>
 #include <qwidget.h>
 #include <qwindow.h>
-#include <qwindowdefs_win.h>
 
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "D3D12.lib")

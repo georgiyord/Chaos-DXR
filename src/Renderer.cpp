@@ -1,16 +1,17 @@
 #include "Renderer.hpp"
-#include <basetsd.h>
-#include <combaseapi.h>
+#include <Windows.h>
+#include <array>
 #include <d3d12.h>
+#include <d3d12sdklayers.h>
+#include <d3dcommon.h>
 #include <dxgi.h>
 #include <dxgi1_2.h>
 #include <dxgi1_3.h>
 #include <dxgi1_4.h>
-#include <dxgi1_5.h>
 #include <dxgi1_6.h>
 #include <dxgiformat.h>
-#include <minwindef.h>
-#include <sstream>
+#include <stdexcept>
+#include <string>
 #include <wil/result_macros.h>
 #include <winrt/base.h>
 

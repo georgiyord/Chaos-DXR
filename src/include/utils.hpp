@@ -1,19 +1,12 @@
 #pragma once
 
 #include <array>
-#include <basetsd.h>
 #include <cmath>
-#include <comdef.h>
-#include <d3d12.h>
-#include <minwindef.h>
 #include <random>
 #include <span>
 #include <utility>
-#include <wil/result_macros.h>
-#include <windef.h>
 #include <windows.h>
 #include <winrt/base.h>
-#include <wrl/client.h>
 
 template <typename T> class access_ptr
 {
@@ -150,6 +143,11 @@ class Color_R8G8B8A8
     }
 
     [[nodiscard]] constexpr FLOAT *data() noexcept
+    {
+        return m_color.data();
+    }
+
+    [[nodiscard]] constexpr const FLOAT *data() const noexcept
     {
         return m_color.data();
     }

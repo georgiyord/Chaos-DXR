@@ -1,17 +1,7 @@
 #include "MovingBarRenderer.hpp"
-#include "Renderer.hpp"
-#include <array>
-#include <combaseapi.h>
+#include "utils.hpp"
+#include <Windows.h>
 #include <d3d12.h>
-#include <dxgi.h>
-#include <dxgi1_2.h>
-#include <dxgi1_4.h>
-#include <dxgiformat.h>
-#include <minwindef.h>
-#include <strsafe.h>
-#include <synchapi.h>
-#include <wil/result_macros.h>
-#include <winerror.h>
 #include <winrt/base.h>
 
 MovingBarRenderer::MovingBarRenderer(HWND handle) : Renderer(handle)
@@ -23,7 +13,7 @@ MovingBarRenderer::MovingBarRenderer(HWND handle, const Color &barColor) : Rende
 
 void MovingBarRenderer::setupCommands(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView)
 {
-    constexpr std::array<FLOAT, 4> black{0.F, 0.F, 0.F, 1.F};
+    constexpr Color black{0.F, 0.F, 0.F, 1.F};
     get_graphicsCommandList()->ClearRenderTargetView(renderTargetView, black.data(), 0, nullptr);
 
     const UINT barWidth = get_width() / 10;

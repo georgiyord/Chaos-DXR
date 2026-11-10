@@ -2,12 +2,8 @@
 
 #include "Renderer.hpp"
 #include "utils.hpp"
-#include <basetsd.h>
+#include <Windows.h>
 #include <d3d12.h>
-#include <minwindef.h>
-#include <wil/resource.h>
-#include <windef.h>
-#include <winrt/base.h>
 
 class MovingBarRenderer final : public Renderer
 {

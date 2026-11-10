@@ -1,11 +1,9 @@
 #pragma once
 
 #include "utils.hpp"
-#include <basetsd.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <wil/resource.h>
-#include <windef.h>
 #include <winrt/base.h>
 
 class Renderer
@@ -49,7 +47,7 @@ class Renderer
     UINT m_width;
     UINT m_height;
     wil::unique_event m_synchEvent;
-    std::array<FLOAT, 4> bgColor{0.F, 0.F, 0.F, 1.F};
+    Color bgColor{0.F, 0.F, 0.F, 1.F};
 
   protected:
     [[nodiscard]] const winrt::com_ptr<ID3D12Device> &get_d3d12device() const noexcept;
@@ -71,6 +69,7 @@ class Renderer
     void waitForGPU();
 
   public:
+    virtual ~Renderer() = default;
     Renderer(HWND handle);
     [[nodiscard]] SIZE_T get_frameIdx() const noexcept;
     void resize(UINT width, UINT height);
