@@ -44,6 +44,7 @@ add_custom_command(
           --no-translations
           --no-compiler-runtime
           --no-system-d3d-compiler
+          $<$<CONFIG:Debug>:--pdb>
           "$<TARGET_FILE:Chaos-DXR>"
   COMMENT "Deploying Qt runtime next to Chaos-DXR.exe")
 
