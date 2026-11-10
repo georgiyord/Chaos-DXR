@@ -22,8 +22,10 @@
           cmake-language-server
           cmake-format
           ninja
+          include-what-you-use
         ];
         shellHook = ''
+          cmake --preset Debug
           source ./tools/wine-msvc/wine-env.sh
           ./tools/wine-msvc/init.sh --skip-test --skip-fetch
           # export PATH="$(realpath ./MSVC/bin/x64):$PATH"

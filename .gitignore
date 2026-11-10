@@ -8,6 +8,8 @@ MSVC
 .notes
 .envrc
 build
+build-debug
 .direnv
 .clangd
 **.ppm
+.vs
