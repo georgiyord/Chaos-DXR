@@ -2,10 +2,15 @@
 
 #include <array>
 #include <basetsd.h>
+#include <cmath>
 #include <comdef.h>
+#include <d3d12.h>
 #include <minwindef.h>
 #include <random>
+#include <span>
 #include <utility>
+#include <wil/result_macros.h>
+#include <windef.h>
 #include <windows.h>
 #include <winrt/base.h>
 #include <wrl/client.h>
@@ -72,7 +77,92 @@ template <typename T> class access_ptr
     }
 }
 
-class HSVGradientColor
+class Color_R8G8B8A8
+{
+    std::array<FLOAT, 4> m_color;
+
+  public:
+    static constexpr Color_R8G8B8A8 WHITE() noexcept
+    {
+        return {1.F, 1.F, 1.F, 1.F};
+    };
+    static constexpr Color_R8G8B8A8 RED() noexcept
+    {
+        return {1.F, 0.F, 0.F, 1.F};
+    };
+
+    constexpr Color_R8G8B8A8(std::span<FLOAT, 4> span) noexcept : m_color({span[0], span[1], span[2], span[3]})
+    {
+    }
+
+    constexpr Color_R8G8B8A8(FLOAT r, FLOAT g, FLOAT b, FLOAT a) noexcept : m_color({r, g, b, a})
+    {
+    }
+
+    constexpr void set(std::span<FLOAT, 4> span) noexcept
+    {
+        m_color = {span[0], span[1], span[2], span[3]};
+    }
+
+    constexpr void set(FLOAT r, FLOAT g, FLOAT b, FLOAT a) noexcept
+    {
+        m_color = {r, g, b, a};
+    }
+
+    constexpr void set_Red(FLOAT r) noexcept
+    {
+        m_color[0] = r;
+    }
+
+    constexpr void set_Green(FLOAT g) noexcept
+    {
+        m_color[1] = g;
+    }
+
+    constexpr void set_Blue(FLOAT b) noexcept
+    {
+        m_color[2] = b;
+    }
+
+    constexpr void set_Alpha(FLOAT a) noexcept
+    {
+        m_color[3] = a;
+    }
+
+    [[nodiscard]] constexpr FLOAT get_Red() const noexcept
+    {
+        return m_color[0];
+    }
+
+    [[nodiscard]] constexpr FLOAT get_Green() const noexcept
+    {
+        return m_color[1];
+    }
+
+    [[nodiscard]] constexpr FLOAT get_Blue() const noexcept
+    {
+        return m_color[2];
+    }
+
+    [[nodiscard]] constexpr FLOAT get_Alpha() const noexcept
+    {
+        return m_color[3];
+    }
+
+    [[nodiscard]] constexpr FLOAT *data() noexcept
+    {
+        return m_color.data();
+    }
+
+    [[nodiscard]] constexpr operator std::span<FLOAT, 4>()
+    {
+        return m_color;
+    }
+};
+
+using Color = Color_R8G8B8A8;
+
+class HSVGradient
 {
     std::array<FLOAT, 4> m_color{1.F, 0.F, 0.F, 1.F};
     UINT8 m_sextant = 0;
@@ -147,8 +237,112 @@ class HSVGradientColor
     }
 
   public:
-    HSVGradientColor(FLOAT m_delta = 0.F) : m_delta(m_delta) {};
+    HSVGradient(FLOAT m_delta = 0.F) : m_delta(m_delta) {};
     [[nodiscard]] constexpr std::span<FLOAT, 4> getColorView()
+    {
+        updateGradient();
+        return m_color;
+    }
+    constexpr void updateDelta(FLOAT delta)
+    {
+        m_delta = delta;
+    }
+};
+
+class RedGreenGradient
+{
+    enum struct State
+    {
+        RedToYellow = 0,
+        YellowToGreen = 1,
+        GreenToYellow = 2,
+        YellowToRed = 3,
+    };
+    State state = State::RedToYellow;
+    Color m_color = Color::RED();
+    FLOAT m_delta;
+
+    constexpr FLOAT getProgress()
+    {
+        switch (state)
+        {
+        case State::RedToYellow:
+            return m_color.get_Green();
+        case State::YellowToGreen:
+            return 1.F - m_color.get_Red();
+        case State::GreenToYellow:
+            return m_color.get_Red();
+        case State::YellowToRed:
+            return 1.F - m_color.get_Green();
+        }
+        std::unreachable();
+    }
+
+    constexpr void resetProgress()
+    {
+        switch (state)
+        {
+        case State::RedToYellow:
+            m_color = {1.F, 0.F, 0.F, 1.F};
+            return;
+        case State::YellowToGreen:
+            m_color = {1.F, 1.F, 0.F, 1.F};
+            return;
+        case State::GreenToYellow:
+            m_color = {0.F, 1.F, 0.F, 1.F};
+            return;
+        case State::YellowToRed:
+            m_color = {1.F, 1.F, 0.F, 1.F};
+            return;
+        }
+    }
+
+    constexpr void setProgress(FLOAT x)
+    {
+        assert(x <= 1.F && x >= 0.F);
+        switch (state)
+        {
+        case State::RedToYellow:
+            m_color.set_Green(x);
+            return;
+        case State::YellowToGreen:
+            m_color.set_Red(1.F - x);
+            return;
+        case State::GreenToYellow:
+            m_color.set_Red(x);
+            return;
+        case State::YellowToRed:
+            m_color.set_Green(1.F - x);
+            return;
+        }
+    }
+
+    constexpr void updateProgressState(UINT step)
+    {
+        step %= 4;
+        state = static_cast<State>((static_cast<UINT>(state) + step) % 4);
+    }
+
+    void updateGradient()
+    {
+        FLOAT norm_delta = std::fmod(m_delta, 4.F);
+        UINT floor = static_cast<UINT>(std::floor(norm_delta));
+        FLOAT progress = getProgress();
+        progress += norm_delta - static_cast<FLOAT>(floor);
+        if (progress >= 1.F)
+        {
+            floor += 1;
+            floor %= 4;
+            progress -= 1.F;
+        }
+        updateProgressState(floor);
+        resetProgress();
+        setProgress(progress);
+    }
+
+  public:
+    RedGreenGradient(FLOAT m_delta = 0.F) : m_delta(m_delta) {};
+    [[nodiscard]] constexpr const Color &getColorView()
     {
         updateGradient();
         return m_color;
