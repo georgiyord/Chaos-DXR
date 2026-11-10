@@ -14,12 +14,12 @@ class MovingBarRenderer final : public Renderer
     Color m_barColor{Color::WHITE()};
 
     void drawMovingBar(D3D12_CPU_DESCRIPTOR_HANDLE rtvDescHandle);
+    void setupCommands(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView) override;
 
   public:
     MovingBarRenderer(HWND handle);
     MovingBarRenderer(HWND handle, const Color &barColor);
 
-    void setupCommands(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView) override;
     void setBarColor(const Color &color) noexcept;
     Color &getBarColor() noexcept;
 };
