@@ -1,8 +1,9 @@
-#include "RechtRenderer.hpp"
+#include "MovingBarRenderer.hpp"
 #include "utils.hpp"
 #include <QStatusBar>
 #include <QtCore/qobjectdefs.h>
 #include <basetsd.h>
+#include <memory>
 #include <minwindef.h>
 #include <qapplication.h>
 #include <qdebug.h>
@@ -20,7 +21,6 @@
 #include <qwidget.h>
 #include <qwindow.h>
 #include <qwindowdefs_win.h>
-#include <span>
 
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "D3D12.lib")
@@ -28,7 +28,7 @@
 
 class DX12Viewport : public QWindow
 {
-    RechtRenderer renderer;
+    std::unique_ptr<MovingBarRenderer> renderer{nullptr};
     QImage m_renderedImage;
     QTimer *updateImageTimer;
     QTimer *updateFpsTimer;
@@ -36,34 +36,36 @@ class DX12Viewport : public QWindow
     UINTRingBuffer<averageFpsBufferCapacity> averageFpsBuffer{};
     UINT averageFPS = 1;
     UINT currentFPS = 0;
-    HSVGradientColor gradientColor;
+    // HSVGradient gradientColor;
+    RedGreenGradient gradientColor;
 
     constexpr static UINT CYCLE_DURATION = 1000;
 
-  public:
-    DX12Viewport()
-        : renderer(reinterpret_cast<HWND>(winId())), updateImageTimer(new QTimer(this)),
-          updateFpsTimer(new QTimer(this))
+  protected:
+    void resizeEvent(QResizeEvent *ev) override
     {
+        QWindow::resizeEvent(ev);
+        qDebug() << "QWindow size:" << ev->size();
+        if (renderer)
+        {
+            const auto size = ev->size();
+            renderer->resize(size.width(), size.height());
+        }
+        else
+        {
+            qWarning() << "Could not resize renderer as it does not exist. Maybe QWindow is still initialising?";
+        }
+    }
+
+  public:
+    DX12Viewport() : updateImageTimer(new QTimer(this)), updateFpsTimer(new QTimer(this))
+    {
+        renderer = std::make_unique<MovingBarRenderer>(reinterpret_cast<HWND>(winId()));
         QObject::connect(
             updateImageTimer, &QTimer::timeout, this,
             [this]() {
-                // const FLOAT offset =
-                //     std::abs(2.F * (frameIdx % CYCLE_DURATION) / static_cast<FLOAT>(CYCLE_DURATION) - 1.F);
-                // const std::array<FLOAT, 4> color{
-                //     offset,
-                //     1.F - offset,
-                //     0.F,
-                //     1.F,
-                // };
-                // const std::array<FLOAT, 4> color{
-                //     static_cast<float>(frameIdx % 3 == 0),
-                //     static_cast<float>(frameIdx % 3 == 1),
-                //     static_cast<float>(frameIdx % 3 == 2),
-                //     1.F,
-                // };
-                renderer.renderMovingBar(gradientColor.getColorView(), width(), height());
-                // renderer.renderRecht(gradientColor.getColorView(), width(), height());
+                renderer->setBarColor(gradientColor.getColorView());
+                renderer->render();
             },
             Qt::DirectConnection);
         updateImageTimer->start();
@@ -71,15 +73,14 @@ class DX12Viewport : public QWindow
             updateFpsTimer, &QTimer::timeout, this,
             [this]() {
                 static SIZE_T lastFrameIdx = 0;
-                currentFPS = renderer.get_frameIdx() - lastFrameIdx;
-                lastFrameIdx = renderer.get_frameIdx();
+                currentFPS = renderer->get_frameIdx() - lastFrameIdx;
+                lastFrameIdx = renderer->get_frameIdx();
                 averageFpsBuffer.push(currentFPS);
                 averageFPS = averageFpsBuffer.average();
                 gradientColor.updateDelta(1.F / averageFPS);
             },
             Qt::DirectConnection);
         updateFpsTimer->start(1000);
-        updateImageTimer->start();
     }
 
     [[nodiscard]] SIZE_T getFPS() const
@@ -89,12 +90,6 @@ class DX12Viewport : public QWindow
     [[nodiscard]] UINT getAverageFPS() const
     {
         return averageFPS;
-    }
-
-    void resizeEvent(QResizeEvent *event) override
-    {
-        QWindow::resizeEvent(event);
-        qDebug() << "QWindow size:" << event->size();
     }
 };
 
