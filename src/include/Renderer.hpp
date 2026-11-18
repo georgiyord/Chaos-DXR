@@ -52,13 +52,7 @@ class Renderer
     [[nodiscard]] HWND get_HWND() const noexcept;
     [[nodiscard]] UINT get_width() const noexcept;
     [[nodiscard]] UINT get_height() const noexcept;
-
-    void incrementFrameIdx() noexcept;
-    void bindSwapChainBufsTosDescriptors();
-    void frameBegin(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView);
-    void frameEnd();
-    virtual void setupCommands(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView) = 0;
-    void waitForGPU();
+    void set_initialPipelineState(winrt::com_ptr<ID3D12PipelineState> &&initialPipelineState) noexcept;
 
   public:
     virtual ~Renderer();
