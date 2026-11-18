@@ -1,4 +1,4 @@
-#include "MovingBarRenderer.hpp"
+#include "Renderers/TriangleRenderer/TriangleRenderer.hpp"
 #include "utils.hpp"
 #include <Windows.h>
 #include <memory>
@@ -44,19 +44,38 @@ class DX12Viewport : public QWindow
         qDebug() << "QWindow size:" << ev->size();
         if (renderer)
         {
-            const auto size = ev->size();
-            renderer->resize(size.width(), size.height());
+            renderer->changeResolution(width(), height());
+            shouldUpdateRendererResolution = false;
         }
-        else
+    }
+
+    bool event(QEvent *ev) override
+    {
+        qDebug() << ev->type();
+        if (ev->type() == QEvent::Type::PlatformSurface)
         {
-            qWarning() << "Could not resize renderer as it does not exist. Maybe QWindow is still initialising?";
+            switch (dynamic_cast<QPlatformSurfaceEvent *>(ev)->surfaceEventType())
+            {
+            case QPlatformSurfaceEvent::SurfaceCreated:
+                renderer = std::make_unique<TriangleRenderer>(reinterpret_cast<HWND>(winId()));
+                renderer->setTriangleTranslation(true);
+                renderer->setTriangleRotation(true);
+                renderer->setTriangleCheckeredPattern(true);
+                renderer->set_bgColor({0.0F, 0.5F, 0.0F, 1.F});
+                break;
+            case QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed:
+                renderer->shutdown();
+                renderer = nullptr;
+                break;
         }
+        }
+        return QWindow::event(ev);
     }
 
   public:
     DX12Viewport() : updateImageTimer(new QTimer(this)), updateFpsTimer(new QTimer(this))
     {
-        renderer = std::make_unique<MovingBarRenderer>(reinterpret_cast<HWND>(winId()));
+        renderer = std::make_unique<TriangleRenderer>(reinterpret_cast<HWND>(winId()));
         QObject::connect(
             updateImageTimer, &QTimer::timeout, this,
             [this]() {
