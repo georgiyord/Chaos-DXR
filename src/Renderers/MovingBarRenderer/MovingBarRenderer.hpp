@@ -3,14 +3,14 @@
 #include "Renderer.hpp"
 #include "utils.hpp"
 #include <Windows.h>
-#include <d3d12.h>
+#include <directx/d3dx12.h>
 
 class MovingBarRenderer final : public Renderer
 {
     Color m_barColor{Color::WHITE()};
 
-    void drawMovingBar(D3D12_CPU_DESCRIPTOR_HANDLE rtvDescHandle);
-    void setupCommands(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView) override;
+    void drawMovingBar(CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescHandle);
+    void setupCommands() override;
 
   public:
     MovingBarRenderer(HWND handle);

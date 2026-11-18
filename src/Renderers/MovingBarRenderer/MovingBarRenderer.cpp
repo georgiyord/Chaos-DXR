@@ -1,7 +1,7 @@
 #include "MovingBarRenderer.hpp"
 #include "utils.hpp"
 #include <Windows.h>
-#include <d3d12.h>
+#include <directx/d3dx12.h>
 #include <winrt/base.h>
 
 MovingBarRenderer::MovingBarRenderer(HWND handle) : Renderer(handle)
@@ -11,11 +11,8 @@ MovingBarRenderer::MovingBarRenderer(HWND handle, const Color &barColor) : Rende
 {
 }
 
-void MovingBarRenderer::setupCommands(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView)
+void MovingBarRenderer::setupCommands()
 {
-    constexpr Color black{0.F, 0.F, 0.F, 1.F};
-    get_graphicsCommandList()->ClearRenderTargetView(renderTargetView, black.data(), 0, nullptr);
-
     const UINT barWidth = get_width() / 10;
     if (barWidth == 0)
     {
@@ -24,13 +21,9 @@ void MovingBarRenderer::setupCommands(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetV
     const UINT barPos = get_frameIdx() % (2 * (get_width() - barWidth));
     const UINT maxLeft = get_width() - barWidth;
     const UINT left = barPos > maxLeft ? maxLeft - (barPos - maxLeft) : barPos;
-    const D3D12_RECT rect{
-        .left = static_cast<LONG>(left),
-        .top = 0,
-        .right = static_cast<LONG>(left + barWidth),
-        .bottom = static_cast<LONG>(get_height()),
-    };
-    get_graphicsCommandList()->ClearRenderTargetView(renderTargetView, m_barColor.data(), 1, &rect);
+    const CD3DX12_RECT rect(static_cast<LONG>(left), 0, static_cast<LONG>(left + barWidth),
+                            static_cast<LONG>(get_height()));
+    get_graphicsCommandList()->ClearRenderTargetView(get_currentRenderTargetView(), m_barColor.data(), 1, &rect);
 }
 
 void MovingBarRenderer::setBarColor(const Color &color) noexcept
