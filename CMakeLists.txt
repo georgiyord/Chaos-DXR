@@ -10,10 +10,64 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # add_executable(Chaos-DXR src/main.cpp src/RechtRenderer.cpp src/Renderer.cpp)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 qt_standard_project_setup()
 
-qt_add_executable(Chaos-DXR src/main.cpp src/RechtRenderer.cpp src/Renderer.cpp)
+# qt_add_executable(Chaos-DXR src/main.cpp src/MovingBarRenderer.cpp src/Renderer.cpp src/TriangleRenderer.cpp)
+# qt_add_executable(Chaos-DXR src/main.cpp src/Renderer.cpp src/Renderers/MovingBarRenderer/MovingBarRenderer.cpp)
+qt_add_executable(Chaos-DXR src/main.cpp src/Renderer.cpp src/Renderers/TriangleRenderer/TriangleRenderer.cpp)
+
+add_subdirectory("vendor/DirectX-Headers")
+target_link_libraries(Chaos-DXR PRIVATE DirectX-Headers)
+
+
+### Shader compilation
+
+set(SHADER_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${SHADER_OUT_DIR}")
+set(GENERATED_SHADER_HEADERS "")
+
+set(HLSL_SHADER_FILES src/Renderers/TriangleRenderer/ConstColorVS.hlsl src/Renderers/TriangleRenderer/ConstColorPS.hlsl)
+set_source_files_properties(src/Renderers/TriangleRenderer/ConstColorVS.hlsl PROPERTIES VS_SHADER_TYPE "vs")
+set_source_files_properties(src/Renderers/TriangleRenderer/ConstColorPS.hlsl PROPERTIES VS_SHADER_TYPE "ps")
+
+foreach(FILE ${HLSL_SHADER_FILES})
+  get_filename_component(FILE_WE ${FILE} NAME_WE)
+  list(APPEND H_SHADER_FILES ${CMAKE_BINARY_DIR}/${FILE_WE}.h)
+  get_source_file_property(shadertype ${FILE} VS_SHADER_TYPE)
+
+  set(CSO "${SHADER_OUT_DIR}/${FILE_WE}.cso")
+  set(HDR "${SHADER_OUT_DIR}/${FILE_WE}.h")
+
+  add_custom_command(
+    OUTPUT  "${CSO}"
+    COMMAND "dxc.exe" -T ${shadertype}_6_0
+            $<$<CONFIG:Debug>:-Od>
+            $<$<CONFIG:Debug>:-Zi>
+            $<$<CONFIG:Debug>:-Fd>
+            $<$<CONFIG:Debug>:${SHADER_OUT_DIR}/${FILE_WE}.pdb>
+            $<$<NOT:$<CONFIG:Debug>>:-O3>
+            -Fo "${CSO}" "${CMAKE_CURRENT_SOURCE_DIR}/${FILE}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${FILE}"
+    COMMENT "Compiling HLSL ${FILE}"
+    VERBATIM
+    COMMAND_EXPAND_LISTS)
+
+  add_custom_command(
+    OUTPUT  "${HDR}"
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/bin2header.py"
+            "${CSO}" "${HDR}" "${FILE_WE}"
+    DEPENDS "${CSO}" "${PROJECT_SOURCE_DIR}/tools/bin2header.py"
+    COMMENT "Creating bytearray header for ${FILE}"
+    VERBATIM)
+
+  list(APPEND GENERATED_SHADER_HEADERS "${HDR}")
+
+endforeach(FILE)
+
+target_sources(Chaos-DXR PRIVATE ${GENERATED_SHADER_HEADERS})
+set_source_files_properties(${GENERATED_SHADER_HEADERS} PROPERTIES GENERATED TRUE)
 
 target_link_libraries(Chaos-DXR PRIVATE Qt6::Widgets)
 
@@ -30,7 +84,8 @@ set_target_properties(Chaos-DXR PROPERTIES
   WIN32_EXECUTABLE ON
 )
 target_include_directories(Chaos-DXR PRIVATE
-  "${PROJECT_SOURCE_DIR}/src/include")
+  "${PROJECT_SOURCE_DIR}/src/include"
+  "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_include_directories(Chaos-DXR SYSTEM PRIVATE
   "${PROJECT_SOURCE_DIR}/vendor/wil/include")
 
