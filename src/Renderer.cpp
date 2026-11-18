@@ -1,18 +1,23 @@
 #include "Renderer.hpp"
-#include <basetsd.h>
-#include <combaseapi.h>
-#include <d3d12.h>
+#include "utils.hpp"
+#include <Windows.h>
+#include <array>
+#include <cassert>
+#include <directx/d3d12.h>
+#include <directx/d3d12sdklayers.h>
+#include <directx/d3dcommon.h>
+#include <directx/dxgiformat.h>
 #include <dxgi.h>
 #include <dxgi1_2.h>
 #include <dxgi1_3.h>
 #include <dxgi1_4.h>
-#include <dxgi1_5.h>
 #include <dxgi1_6.h>
-#include <dxgiformat.h>
 #include <minwindef.h>
-#include <sstream>
+#include <stdexcept>
+#include <string>
 #include <wil/result_macros.h>
 #include <winrt/base.h>
+#include <winuser.h>
 
 const D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {
     .Type = D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -64,7 +69,7 @@ void Renderer::incrementFrameIdx() noexcept
     ++m_frameIdx;
 }
 
-Renderer::Renderer(HWND handle) : m_windowHandle(handle) /* , m_rechtRenderer(nullptr) */
+Renderer::Renderer(HWND handle) : m_windowHandle(handle)
 {
     UINT factoryDebugFlag = 0;
 #if defined(_DEBUG) && WIN_HOST
@@ -74,7 +79,7 @@ Renderer::Renderer(HWND handle) : m_windowHandle(handle) /* , m_rechtRenderer(nu
         debugInterface->EnableDebugLayer();
         factoryDebugFlag = DXGI_CREATE_FACTORY_DEBUG;
     }
-#elif defined(_DEBUG)
+#elifdef _DEBUG
     std::cerr << "Could not enable D3D12 debug layer: Not supported on wine/vkd3d/proton\n";
 #endif
     winrt::com_ptr<IDXGIFactory7> pFactory;
@@ -90,17 +95,15 @@ Renderer::Renderer(HWND handle) : m_windowHandle(handle) /* , m_rechtRenderer(nu
 
     THROW_IF_FAILED(m_d3d12device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, get_commandAllocator().get(),
                                                      nullptr, IID_PPV_ARGS(m_graphicsCommandList.put())));
+    THROW_IF_FAILED(m_graphicsCommandList->Close());
 
     // BOOL allowTearing = FALSE;
     // THROW_IF_FAILED(
     //     pFactory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing)));
 
-    constexpr UINT SWAP_CHAIN_WIDTH = 128;
-    constexpr UINT SWAP_CHAIN_HEIGHT = 128;
-
     constexpr DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {
-        .Width = SWAP_CHAIN_WIDTH,
-        .Height = SWAP_CHAIN_HEIGHT,
+        .Width = 0,
+        .Height = 0,
         .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
         .Stereo = FALSE,
         .SampleDesc = {.Count = 1, .Quality = 0},
@@ -134,11 +137,14 @@ Renderer::Renderer(HWND handle) : m_windowHandle(handle) /* , m_rechtRenderer(nu
 
     THROW_IF_FAILED(m_d3d12device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.put())));
 
+    m_synchEvent.create();
+
     m_rtvDescriptorSize = m_d3d12device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 }
 
-void Renderer::resize(UINT width, UINT height)
+void Renderer::changeResolution(UINT width, UINT height)
 {
+    assert(IsWindow(m_windowHandle) != 0);
     m_width = width;
     m_height = height;
 
@@ -155,7 +161,7 @@ void Renderer::resize(UINT width, UINT height)
 void Renderer::bindSwapChainBufsTosDescriptors()
 {
     winrt::com_ptr<ID3D12Resource> swapChainBuffer;
-    D3D12_CPU_DESCRIPTOR_HANDLE rtvDescHandle{m_rtvDescHandle};
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescHandle{m_rtvDescHandle};
     std::wstring baseName = L"Swap Chain buffer #";
 
     for (UINT i = 0; i < swapChainBuffersN; ++i)
@@ -166,7 +172,7 @@ void Renderer::bindSwapChainBufsTosDescriptors()
         THROW_IF_FAILED(get_swapChain()->GetBuffer(i, IID_PPV_ARGS(swapChainBuffer.put())));
         THROW_IF_FAILED(swapChainBuffer->SetName(finalName.view().data()));
         m_d3d12device->CreateRenderTargetView(swapChainBuffer.get(), nullptr, rtvDescHandle);
-        rtvDescHandle.ptr += m_rtvDescriptorSize;
+        rtvDescHandle.Offset(1, m_rtvDescriptorSize);
     }
 }
 
@@ -187,24 +193,29 @@ void Renderer::waitForGPU()
 
 void Renderer::render()
 {
-    auto renderTargetView = m_rtvDescHandle;
-    frameBegin(renderTargetView);
-    setupCommands(renderTargetView);
+    frameBegin();
+    setupCommands();
     frameEnd();
 }
 
-void Renderer::frameBegin(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView)
+void Renderer::frameBegin()
 {
     winrt::com_ptr<ID3D12Resource> currentBuffer;
     const UINT bufferIdx = get_swapChain()->GetCurrentBackBufferIndex();
-    renderTargetView.ptr += static_cast<SIZE_T>(m_rtvDescriptorSize) * bufferIdx;
+    m_currentRenderTargetView = m_rtvDescHandle;
+    m_currentRenderTargetView.Offset(static_cast<INT>(bufferIdx), m_rtvDescriptorSize);
 
     get_swapChain()->GetBuffer(bufferIdx, IID_PPV_ARGS(currentBuffer.put()));
     m_barrierToRender.Transition.pResource = currentBuffer.get();
     m_barrierToPresent.Transition.pResource = currentBuffer.get();
 
+    THROW_IF_FAILED(get_commandAllocator()->Reset());
+    THROW_IF_FAILED(m_graphicsCommandList->Reset(get_commandAllocator().get(), m_initialPipelineState.get()));
+
     m_graphicsCommandList->ResourceBarrier(1, &m_barrierToRender);
-    m_graphicsCommandList->OMSetRenderTargets(1, &renderTargetView, FALSE, nullptr);
+    m_graphicsCommandList->OMSetRenderTargets(1, &m_currentRenderTargetView, FALSE, nullptr);
+
+    get_graphicsCommandList()->ClearRenderTargetView(m_currentRenderTargetView, m_bgColor.data(), 0, nullptr);
 }
 
 void Renderer::frameEnd()
@@ -227,8 +238,26 @@ void Renderer::frameEnd()
 
     THROW_IF_FAILED(get_swapChain()->Present1(0, DXGI_PRESENT_ALLOW_TEARING, &presentParams));
 
-    THROW_IF_FAILED(get_commandAllocator()->Reset());
-    THROW_IF_FAILED(m_graphicsCommandList->Reset(get_commandAllocator().get(), nullptr));
-
     incrementFrameIdx();
+}
+
+void Renderer::shutdown()
+{
+    waitForGPU();
+    DebugOnly(safeToDestruct = true);
+}
+
+Renderer::~Renderer()
+{
+    assert(safeToDestruct == true && "Make sure to call Renderer::shutdown() before releasing object!");
+}
+
+void Renderer::set_bgColor(const Color &color) noexcept
+{
+    m_bgColor = color;
+}
+
+void Renderer::set_initialPipelineState(winrt::com_ptr<ID3D12PipelineState> &&initialPipelineState) noexcept
+{
+    m_initialPipelineState = std::move(initialPipelineState);
 }

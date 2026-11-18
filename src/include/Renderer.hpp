@@ -1,11 +1,9 @@
 #pragma once
 
 #include "utils.hpp"
-#include <basetsd.h>
-#include <d3d12.h>
+#include <directx/d3dx12.h>
 #include <dxgi1_4.h>
 #include <wil/resource.h>
-#include <windef.h>
 #include <winrt/base.h>
 
 class Renderer
@@ -20,36 +18,28 @@ class Renderer
     winrt::com_ptr<IDXGISwapChain3> m_swapChain;
     winrt::com_ptr<ID3D12Fence> m_fence;
     winrt::com_ptr<ID3D12DescriptorHeap> m_descriptorHeap;
-    D3D12_CPU_DESCRIPTOR_HANDLE m_rtvDescHandle{};
-    D3D12_RESOURCE_BARRIER m_barrierToPresent{
-        .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-        .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
-        .Transition =
-            {
-                .pResource = nullptr,
-                .Subresource = 0,
-                .StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET,
-                .StateAfter = D3D12_RESOURCE_STATE_PRESENT,
-            },
-    };
-    D3D12_RESOURCE_BARRIER m_barrierToRender{
-        .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-        .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
-        .Transition =
-            {
-                .pResource = nullptr,
-                .Subresource = 0,
-                .StateBefore = D3D12_RESOURCE_STATE_PRESENT,
-                .StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET,
-            },
-    };
+    winrt::com_ptr<ID3D12PipelineState> m_initialPipelineState;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE m_rtvDescHandle{};
+    CD3DX12_CPU_DESCRIPTOR_HANDLE m_currentRenderTargetView{};
+    D3D12_RESOURCE_BARRIER m_barrierToPresent =
+        CD3DX12_RESOURCE_BARRIER::Transition(nullptr, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    D3D12_RESOURCE_BARRIER m_barrierToRender =
+        CD3DX12_RESOURCE_BARRIER::Transition(nullptr, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     UINT m_rtvDescriptorSize{};
     HWND m_windowHandle;
     SIZE_T m_frameIdx = 0;
-    UINT m_width;
-    UINT m_height;
+    UINT m_width{};
+    UINT m_height{};
     wil::unique_event m_synchEvent;
-    std::array<FLOAT, 4> bgColor{0.F, 0.F, 0.F, 1.F};
+    Color m_bgColor{0.F, 0.F, 0.F, 1.F};
+
+    void incrementFrameIdx() noexcept;
+    void bindSwapChainBufsTosDescriptors();
+    void frameBegin();
+    void frameEnd();
+    virtual void setupCommands() = 0;
+    void waitForGPU();
+    DebugOnly(bool safeToDestruct = false);
 
   protected:
     [[nodiscard]] const winrt::com_ptr<ID3D12Device> &get_d3d12device() const noexcept;
@@ -59,20 +49,24 @@ class Renderer
     [[nodiscard]] const winrt::com_ptr<IDXGISwapChain3> &get_swapChain() const noexcept;
     [[nodiscard]] const winrt::com_ptr<ID3D12Fence> &get_fence() const noexcept;
     [[nodiscard]] const winrt::com_ptr<ID3D12DescriptorHeap> &get_descriptorHeap() const noexcept;
+    [[nodiscard]] const CD3DX12_CPU_DESCRIPTOR_HANDLE &get_currentRenderTargetView() const noexcept;
     [[nodiscard]] HWND get_HWND() const noexcept;
     [[nodiscard]] UINT get_width() const noexcept;
     [[nodiscard]] UINT get_height() const noexcept;
-
-    void incrementFrameIdx() noexcept;
-    void bindSwapChainBufsTosDescriptors();
-    void frameBegin(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView);
-    void frameEnd();
-    virtual void setupCommands(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView) = 0;
-    void waitForGPU();
+    void set_initialPipelineState(winrt::com_ptr<ID3D12PipelineState> &&initialPipelineState) noexcept;
 
   public:
+    virtual ~Renderer();
     Renderer(HWND handle);
+    Renderer(const Renderer &) = delete;
+    Renderer &operator=(const Renderer &) = delete;
+
     [[nodiscard]] SIZE_T get_frameIdx() const noexcept;
-    void resize(UINT width, UINT height);
+    void changeResolution(UINT width, UINT height);
     void render();
+    void shutdown();
+    void set_bgColor(const Color &color) noexcept;
+    virtual void update()
+    {
+    }
 };

@@ -1,10 +1,7 @@
-#include "MovingBarRenderer.hpp"
+#include "Renderers/TriangleRenderer/TriangleRenderer.hpp"
 #include "utils.hpp"
-#include <QStatusBar>
-#include <QtCore/qobjectdefs.h>
-#include <basetsd.h>
+#include <Windows.h>
 #include <memory>
-#include <minwindef.h>
 #include <qapplication.h>
 #include <qdebug.h>
 #include <qevent.h>
@@ -15,12 +12,11 @@
 #include <qnamespace.h>
 #include <qobject.h>
 #include <qsize.h>
+#include <qstatusbar.h>
 #include <qstring.h>
 #include <qtimer.h>
-#include <qtypeinfo.h>
 #include <qwidget.h>
 #include <qwindow.h>
-#include <qwindowdefs_win.h>
 
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "D3D12.lib")
@@ -28,7 +24,7 @@
 
 class DX12Viewport : public QWindow
 {
-    std::unique_ptr<MovingBarRenderer> renderer{nullptr};
+    std::unique_ptr<TriangleRenderer> renderer{nullptr};
     QImage m_renderedImage;
     QTimer *updateImageTimer;
     QTimer *updateFpsTimer;
@@ -48,36 +44,59 @@ class DX12Viewport : public QWindow
         qDebug() << "QWindow size:" << ev->size();
         if (renderer)
         {
-            const auto size = ev->size();
-            renderer->resize(size.width(), size.height());
+            renderer->changeResolution(width(), height());
         }
-        else
+    }
+
+    bool event(QEvent *ev) override
+    {
+        qDebug() << ev->type();
+        if (ev->type() == QEvent::Type::PlatformSurface)
         {
-            qWarning() << "Could not resize renderer as it does not exist. Maybe QWindow is still initialising?";
+            switch (dynamic_cast<QPlatformSurfaceEvent *>(ev)->surfaceEventType())
+            {
+            case QPlatformSurfaceEvent::SurfaceCreated:
+                renderer = std::make_unique<TriangleRenderer>(reinterpret_cast<HWND>(winId()));
+                renderer->setTriangleTranslation(true);
+                renderer->setTriangleRotation(true);
+                renderer->setTriangleCheckeredPattern(true);
+                renderer->set_bgColor({0.0F, 0.5F, 0.0F, 1.F});
+                break;
+            case QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed:
+                renderer->shutdown();
+                renderer = nullptr;
+                break;
+            }
         }
+        return QWindow::event(ev);
     }
 
   public:
     DX12Viewport() : updateImageTimer(new QTimer(this)), updateFpsTimer(new QTimer(this))
     {
-        renderer = std::make_unique<MovingBarRenderer>(reinterpret_cast<HWND>(winId()));
         QObject::connect(
             updateImageTimer, &QTimer::timeout, this,
             [this]() {
-                renderer->setBarColor(gradientColor.getColorView());
-                renderer->render();
+                if (renderer)
+                {
+                    renderer->update();
+                    renderer->render();
+                }
             },
             Qt::DirectConnection);
         updateImageTimer->start();
         QObject::connect(
             updateFpsTimer, &QTimer::timeout, this,
             [this]() {
-                static SIZE_T lastFrameIdx = 0;
-                currentFPS = renderer->get_frameIdx() - lastFrameIdx;
-                lastFrameIdx = renderer->get_frameIdx();
-                averageFpsBuffer.push(currentFPS);
-                averageFPS = averageFpsBuffer.average();
-                gradientColor.updateDelta(1.F / averageFPS);
+                if (renderer)
+                {
+                    static SIZE_T lastFrameIdx = 0;
+                    currentFPS = renderer->get_frameIdx() - lastFrameIdx;
+                    lastFrameIdx = renderer->get_frameIdx();
+                    averageFpsBuffer.push(currentFPS);
+                    averageFPS = averageFpsBuffer.average();
+                    gradientColor.updateDelta(1.F / averageFPS);
+                }
             },
             Qt::DirectConnection);
         updateFpsTimer->start(1000);
@@ -119,8 +138,7 @@ class DX12MainWindow : public QMainWindow
             Qt::DirectConnection);
         updateFpsTimer->start(1000);
         setCentralWidget(viewPortContainer);
-        resize(320, 240);
-        setWindowTitle("DX12 Demo");
+        resize(1280, 720);
         show();
     }
 
@@ -131,11 +149,19 @@ class DX12MainWindow : public QMainWindow
     }
 };
 
-int main(int argc, char *argv[])
+class DX12App : public QApplication
 {
-
-    QApplication app(argc, argv);
     DX12MainWindow window;
 
-    return app.exec();
+  public:
+    DX12App(int argc, char *argv[]) : QApplication(argc, argv)
+    {
+    }
+};
+
+int main(int argc, char *argv[])
+{
+    DX12App app(argc, argv);
+
+    return DX12App::exec();
 }
