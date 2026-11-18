@@ -6,9 +6,6 @@ project(
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # set(CMAKE_CXX_CLANG_TIDY clang-tidy --extra-arg-before=-EHsc)
-set(MSVC_DIR "${PROJECT_SOURCE_DIR}/MSVC")
-set(MSVC_VER "14.51.36231")
-set(SDK_DIR "${MSVC_DIR}/Windows Kits/10/Include/10.0.28000.0")
 
 # add_executable(Chaos-DXR src/main.cpp src/RechtRenderer.cpp src/Renderer.cpp)
 
@@ -50,6 +47,9 @@ add_custom_command(
 
 
 if(NOT CMAKE_HOST_WIN32)
+  set(MSVC_DIR "${PROJECT_SOURCE_DIR}/MSVC")
+  set(MSVC_VER "14.51.36231")
+  set(SDK_DIR "${MSVC_DIR}/Windows Kits/10/Include/10.0.28000.0")
   target_include_directories(Chaos-DXR SYSTEM PRIVATE
     "${MSVC_DIR}/vc/tools/msvc/${MSVC_VER}/include"
     "${SDK_DIR}/shared"
