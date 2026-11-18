@@ -74,7 +74,6 @@ class DX12Viewport : public QWindow
   public:
     DX12Viewport() : updateImageTimer(new QTimer(this)), updateFpsTimer(new QTimer(this))
     {
-        renderer = std::make_unique<TriangleRenderer>(reinterpret_cast<HWND>(winId()));
         QObject::connect(
             updateImageTimer, &QTimer::timeout, this,
             [this]() {
