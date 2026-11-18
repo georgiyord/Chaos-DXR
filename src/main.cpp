@@ -24,7 +24,7 @@
 
 class DX12Viewport : public QWindow
 {
-    std::unique_ptr<MovingBarRenderer> renderer{nullptr};
+    std::unique_ptr<TriangleRenderer> renderer{nullptr};
     QImage m_renderedImage;
     QTimer *updateImageTimer;
     QTimer *updateFpsTimer;
@@ -60,20 +60,26 @@ class DX12Viewport : public QWindow
         QObject::connect(
             updateImageTimer, &QTimer::timeout, this,
             [this]() {
-                renderer->setBarColor(gradientColor.getColorView());
+                if (renderer)
+                {
+                    renderer->update();
                 renderer->render();
+                }
             },
             Qt::DirectConnection);
         updateImageTimer->start();
         QObject::connect(
             updateFpsTimer, &QTimer::timeout, this,
             [this]() {
+                if (renderer)
+                {
                 static SIZE_T lastFrameIdx = 0;
                 currentFPS = renderer->get_frameIdx() - lastFrameIdx;
                 lastFrameIdx = renderer->get_frameIdx();
                 averageFpsBuffer.push(currentFPS);
                 averageFPS = averageFpsBuffer.average();
                 gradientColor.updateDelta(1.F / averageFPS);
+                }
             },
             Qt::DirectConnection);
         updateFpsTimer->start(1000);
