@@ -1,4 +1,5 @@
 #include "Renderer.hpp"
+#include "utils.hpp"
 #include <Windows.h>
 #include <array>
 #include <cassert>
@@ -11,11 +12,12 @@
 #include <dxgi1_3.h>
 #include <dxgi1_4.h>
 #include <dxgi1_6.h>
-#include <dxgiformat.h>
+#include <minwindef.h>
 #include <stdexcept>
 #include <string>
 #include <wil/result_macros.h>
 #include <winrt/base.h>
+#include <winuser.h>
 
 const D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {
     .Type = D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -67,7 +69,7 @@ void Renderer::incrementFrameIdx() noexcept
     ++m_frameIdx;
 }
 
-Renderer::Renderer(HWND handle) : m_windowHandle(handle) /* , m_rechtRenderer(nullptr) */
+Renderer::Renderer(HWND handle) : m_windowHandle(handle)
 {
     UINT factoryDebugFlag = 0;
 #if defined(_DEBUG) && WIN_HOST
@@ -77,7 +79,7 @@ Renderer::Renderer(HWND handle) : m_windowHandle(handle) /* , m_rechtRenderer(nu
         debugInterface->EnableDebugLayer();
         factoryDebugFlag = DXGI_CREATE_FACTORY_DEBUG;
     }
-#elif defined(_DEBUG)
+#elifdef _DEBUG
     std::cerr << "Could not enable D3D12 debug layer: Not supported on wine/vkd3d/proton\n";
 #endif
     winrt::com_ptr<IDXGIFactory7> pFactory;
@@ -99,12 +101,9 @@ Renderer::Renderer(HWND handle) : m_windowHandle(handle) /* , m_rechtRenderer(nu
     // THROW_IF_FAILED(
     //     pFactory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing)));
 
-    constexpr UINT SWAP_CHAIN_WIDTH = 128;
-    constexpr UINT SWAP_CHAIN_HEIGHT = 128;
-
     constexpr DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {
-        .Width = SWAP_CHAIN_WIDTH,
-        .Height = SWAP_CHAIN_HEIGHT,
+        .Width = 0,
+        .Height = 0,
         .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
         .Stereo = FALSE,
         .SampleDesc = {.Count = 1, .Quality = 0},
@@ -143,8 +142,9 @@ Renderer::Renderer(HWND handle) : m_windowHandle(handle) /* , m_rechtRenderer(nu
     m_rtvDescriptorSize = m_d3d12device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 }
 
-void Renderer::resize(UINT width, UINT height)
+void Renderer::changeResolution(UINT width, UINT height)
 {
+    assert(IsWindow(m_windowHandle) != 0);
     m_width = width;
     m_height = height;
 
@@ -239,4 +239,25 @@ void Renderer::frameEnd()
     THROW_IF_FAILED(get_swapChain()->Present1(0, DXGI_PRESENT_ALLOW_TEARING, &presentParams));
 
     incrementFrameIdx();
+}
+
+void Renderer::shutdown()
+{
+    waitForGPU();
+    DebugOnly(safeToDestruct = true);
+}
+
+Renderer::~Renderer()
+{
+    assert(safeToDestruct == true && "Make sure to call Renderer::shutdown() before releasing object!");
+}
+
+void Renderer::set_bgColor(const Color &color) noexcept
+{
+    m_bgColor = color;
+}
+
+void Renderer::set_initialPipelineState(winrt::com_ptr<ID3D12PipelineState> &&initialPipelineState) noexcept
+{
+    m_initialPipelineState = std::move(initialPipelineState);
 }

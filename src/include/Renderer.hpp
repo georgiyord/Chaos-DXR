@@ -28,8 +28,8 @@ class Renderer
     UINT m_rtvDescriptorSize{};
     HWND m_windowHandle;
     SIZE_T m_frameIdx = 0;
-    UINT m_width;
-    UINT m_height;
+    UINT m_width{};
+    UINT m_height{};
     wil::unique_event m_synchEvent;
     Color m_bgColor{0.F, 0.F, 0.F, 1.F};
 
@@ -58,7 +58,15 @@ class Renderer
   public:
     virtual ~Renderer();
     Renderer(HWND handle);
+    Renderer(const Renderer &) = delete;
+    Renderer &operator=(const Renderer &) = delete;
+
     [[nodiscard]] SIZE_T get_frameIdx() const noexcept;
-    void resize(UINT width, UINT height);
+    void changeResolution(UINT width, UINT height);
     void render();
+    void shutdown();
+    void set_bgColor(const Color &color) noexcept;
+    virtual void update()
+    {
+    }
 };
