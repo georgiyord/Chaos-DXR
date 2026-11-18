@@ -414,3 +414,17 @@ template <UINT64 Capacity> class UINTRingBuffer
         return result / m_size;
     }
 };
+
+#ifdef NDEBUG
+#define DebugOnly(expression)
+#else
+#define DebugOnly(expression) expression
+#endif
+
+struct Vertex
+{
+    float x, y;
+    constexpr Vertex(float x, float y) : x(x), y(y)
+    {
+    }
+};
