@@ -49,6 +49,7 @@ class Renderer
     [[nodiscard]] const winrt::com_ptr<IDXGISwapChain3> &get_swapChain() const noexcept;
     [[nodiscard]] const winrt::com_ptr<ID3D12Fence> &get_fence() const noexcept;
     [[nodiscard]] const winrt::com_ptr<ID3D12DescriptorHeap> &get_descriptorHeap() const noexcept;
+    [[nodiscard]] const CD3DX12_CPU_DESCRIPTOR_HANDLE &get_currentRenderTargetView() const noexcept;
     [[nodiscard]] HWND get_HWND() const noexcept;
     [[nodiscard]] UINT get_width() const noexcept;
     [[nodiscard]] UINT get_height() const noexcept;

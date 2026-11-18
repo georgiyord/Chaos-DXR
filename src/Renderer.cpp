@@ -93,6 +93,7 @@ Renderer::Renderer(HWND handle) : m_windowHandle(handle) /* , m_rechtRenderer(nu
 
     THROW_IF_FAILED(m_d3d12device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, get_commandAllocator().get(),
                                                      nullptr, IID_PPV_ARGS(m_graphicsCommandList.put())));
+    THROW_IF_FAILED(m_graphicsCommandList->Close());
 
     // BOOL allowTearing = FALSE;
     // THROW_IF_FAILED(
@@ -190,13 +191,12 @@ void Renderer::waitForGPU()
 
 void Renderer::render()
 {
-    auto renderTargetView = m_rtvDescHandle;
-    frameBegin(renderTargetView);
-    setupCommands(renderTargetView);
+    frameBegin();
+    setupCommands();
     frameEnd();
 }
 
-void Renderer::frameBegin(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView)
+void Renderer::frameBegin()
 {
     winrt::com_ptr<ID3D12Resource> currentBuffer;
     const UINT bufferIdx = get_swapChain()->GetCurrentBackBufferIndex();
@@ -207,8 +207,13 @@ void Renderer::frameBegin(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView)
     m_barrierToRender.Transition.pResource = currentBuffer.get();
     m_barrierToPresent.Transition.pResource = currentBuffer.get();
 
+    THROW_IF_FAILED(get_commandAllocator()->Reset());
+    THROW_IF_FAILED(m_graphicsCommandList->Reset(get_commandAllocator().get(), m_initialPipelineState.get()));
+
     m_graphicsCommandList->ResourceBarrier(1, &m_barrierToRender);
-    m_graphicsCommandList->OMSetRenderTargets(1, &renderTargetView, FALSE, nullptr);
+    m_graphicsCommandList->OMSetRenderTargets(1, &m_currentRenderTargetView, FALSE, nullptr);
+
+    get_graphicsCommandList()->ClearRenderTargetView(m_currentRenderTargetView, m_bgColor.data(), 0, nullptr);
 }
 
 void Renderer::frameEnd()
@@ -230,9 +235,6 @@ void Renderer::frameEnd()
     };
 
     THROW_IF_FAILED(get_swapChain()->Present1(0, DXGI_PRESENT_ALLOW_TEARING, &presentParams));
-
-    THROW_IF_FAILED(get_commandAllocator()->Reset());
-    THROW_IF_FAILED(m_graphicsCommandList->Reset(get_commandAllocator().get(), nullptr));
 
     incrementFrameIdx();
 }
