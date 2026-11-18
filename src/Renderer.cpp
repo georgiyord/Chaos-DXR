@@ -1,9 +1,11 @@
 #include "Renderer.hpp"
 #include <Windows.h>
 #include <array>
-#include <d3d12.h>
-#include <d3d12sdklayers.h>
-#include <d3dcommon.h>
+#include <cassert>
+#include <directx/d3d12.h>
+#include <directx/d3d12sdklayers.h>
+#include <directx/d3dcommon.h>
+#include <directx/dxgiformat.h>
 #include <dxgi.h>
 #include <dxgi1_2.h>
 #include <dxgi1_3.h>
@@ -156,7 +158,7 @@ void Renderer::resize(UINT width, UINT height)
 void Renderer::bindSwapChainBufsTosDescriptors()
 {
     winrt::com_ptr<ID3D12Resource> swapChainBuffer;
-    D3D12_CPU_DESCRIPTOR_HANDLE rtvDescHandle{m_rtvDescHandle};
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescHandle{m_rtvDescHandle};
     std::wstring baseName = L"Swap Chain buffer #";
 
     for (UINT i = 0; i < swapChainBuffersN; ++i)
@@ -167,7 +169,7 @@ void Renderer::bindSwapChainBufsTosDescriptors()
         THROW_IF_FAILED(get_swapChain()->GetBuffer(i, IID_PPV_ARGS(swapChainBuffer.put())));
         THROW_IF_FAILED(swapChainBuffer->SetName(finalName.view().data()));
         m_d3d12device->CreateRenderTargetView(swapChainBuffer.get(), nullptr, rtvDescHandle);
-        rtvDescHandle.ptr += m_rtvDescriptorSize;
+        rtvDescHandle.Offset(1, m_rtvDescriptorSize);
     }
 }
 
@@ -198,7 +200,8 @@ void Renderer::frameBegin(D3D12_CPU_DESCRIPTOR_HANDLE &renderTargetView)
 {
     winrt::com_ptr<ID3D12Resource> currentBuffer;
     const UINT bufferIdx = get_swapChain()->GetCurrentBackBufferIndex();
-    renderTargetView.ptr += static_cast<SIZE_T>(m_rtvDescriptorSize) * bufferIdx;
+    m_currentRenderTargetView = m_rtvDescHandle;
+    m_currentRenderTargetView.Offset(static_cast<INT>(bufferIdx), m_rtvDescriptorSize);
 
     get_swapChain()->GetBuffer(bufferIdx, IID_PPV_ARGS(currentBuffer.put()));
     m_barrierToRender.Transition.pResource = currentBuffer.get();

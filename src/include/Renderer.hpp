@@ -1,7 +1,7 @@
 #pragma once
 
 #include "utils.hpp"
-#include <d3d12.h>
+#include <directx/d3dx12.h>
 #include <dxgi1_4.h>
 #include <wil/resource.h>
 #include <winrt/base.h>
@@ -18,29 +18,13 @@ class Renderer
     winrt::com_ptr<IDXGISwapChain3> m_swapChain;
     winrt::com_ptr<ID3D12Fence> m_fence;
     winrt::com_ptr<ID3D12DescriptorHeap> m_descriptorHeap;
-    D3D12_CPU_DESCRIPTOR_HANDLE m_rtvDescHandle{};
-    D3D12_RESOURCE_BARRIER m_barrierToPresent{
-        .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-        .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
-        .Transition =
-            {
-                .pResource = nullptr,
-                .Subresource = 0,
-                .StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET,
-                .StateAfter = D3D12_RESOURCE_STATE_PRESENT,
-            },
-    };
-    D3D12_RESOURCE_BARRIER m_barrierToRender{
-        .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-        .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
-        .Transition =
-            {
-                .pResource = nullptr,
-                .Subresource = 0,
-                .StateBefore = D3D12_RESOURCE_STATE_PRESENT,
-                .StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET,
-            },
-    };
+    winrt::com_ptr<ID3D12PipelineState> m_initialPipelineState;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE m_rtvDescHandle{};
+    CD3DX12_CPU_DESCRIPTOR_HANDLE m_currentRenderTargetView{};
+    D3D12_RESOURCE_BARRIER m_barrierToPresent =
+        CD3DX12_RESOURCE_BARRIER::Transition(nullptr, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    D3D12_RESOURCE_BARRIER m_barrierToRender =
+        CD3DX12_RESOURCE_BARRIER::Transition(nullptr, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     UINT m_rtvDescriptorSize{};
     HWND m_windowHandle;
     SIZE_T m_frameIdx = 0;
@@ -77,7 +61,7 @@ class Renderer
     void waitForGPU();
 
   public:
-    virtual ~Renderer() = default;
+    virtual ~Renderer();
     Renderer(HWND handle);
     [[nodiscard]] SIZE_T get_frameIdx() const noexcept;
     void resize(UINT width, UINT height);
