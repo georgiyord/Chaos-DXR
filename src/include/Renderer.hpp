@@ -47,7 +47,15 @@ class Renderer
     UINT m_width;
     UINT m_height;
     wil::unique_event m_synchEvent;
-    Color bgColor{0.F, 0.F, 0.F, 1.F};
+    Color m_bgColor{0.F, 0.F, 0.F, 1.F};
+
+    void incrementFrameIdx() noexcept;
+    void bindSwapChainBufsTosDescriptors();
+    void frameBegin();
+    void frameEnd();
+    virtual void setupCommands() = 0;
+    void waitForGPU();
+    DebugOnly(bool safeToDestruct = false);
 
   protected:
     [[nodiscard]] const winrt::com_ptr<ID3D12Device> &get_d3d12device() const noexcept;
