@@ -138,6 +138,8 @@ Renderer::Renderer(HWND handle) : m_windowHandle(handle) /* , m_rechtRenderer(nu
 
     THROW_IF_FAILED(m_d3d12device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.put())));
 
+    m_synchEvent.create();
+
     m_rtvDescriptorSize = m_d3d12device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 }
 
