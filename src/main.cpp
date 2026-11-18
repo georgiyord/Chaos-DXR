@@ -45,7 +45,6 @@ class DX12Viewport : public QWindow
         if (renderer)
         {
             renderer->changeResolution(width(), height());
-            shouldUpdateRendererResolution = false;
         }
     }
 
@@ -67,7 +66,7 @@ class DX12Viewport : public QWindow
                 renderer->shutdown();
                 renderer = nullptr;
                 break;
-        }
+            }
         }
         return QWindow::event(ev);
     }
@@ -82,7 +81,7 @@ class DX12Viewport : public QWindow
                 if (renderer)
                 {
                     renderer->update();
-                renderer->render();
+                    renderer->render();
                 }
             },
             Qt::DirectConnection);
@@ -92,12 +91,12 @@ class DX12Viewport : public QWindow
             [this]() {
                 if (renderer)
                 {
-                static SIZE_T lastFrameIdx = 0;
-                currentFPS = renderer->get_frameIdx() - lastFrameIdx;
-                lastFrameIdx = renderer->get_frameIdx();
-                averageFpsBuffer.push(currentFPS);
-                averageFPS = averageFpsBuffer.average();
-                gradientColor.updateDelta(1.F / averageFPS);
+                    static SIZE_T lastFrameIdx = 0;
+                    currentFPS = renderer->get_frameIdx() - lastFrameIdx;
+                    lastFrameIdx = renderer->get_frameIdx();
+                    averageFpsBuffer.push(currentFPS);
+                    averageFPS = averageFpsBuffer.average();
+                    gradientColor.updateDelta(1.F / averageFPS);
                 }
             },
             Qt::DirectConnection);
@@ -140,8 +139,7 @@ class DX12MainWindow : public QMainWindow
             Qt::DirectConnection);
         updateFpsTimer->start(1000);
         setCentralWidget(viewPortContainer);
-        resize(320, 240);
-        setWindowTitle("DX12 Demo");
+        resize(1280, 720);
         show();
     }
 
@@ -152,11 +150,19 @@ class DX12MainWindow : public QMainWindow
     }
 };
 
-int main(int argc, char *argv[])
+class DX12App : public QApplication
 {
-
-    QApplication app(argc, argv);
     DX12MainWindow window;
 
-    return app.exec();
+  public:
+    DX12App(int argc, char *argv[]) : QApplication(argc, argv)
+    {
+    }
+};
+
+int main(int argc, char *argv[])
+{
+    DX12App app(argc, argv);
+
+    return DX12App::exec();
 }
