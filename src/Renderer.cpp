@@ -64,6 +64,11 @@ SIZE_T Renderer::get_frameIdx() const noexcept
     return m_frameIdx;
 }
 
+const CD3DX12_CPU_DESCRIPTOR_HANDLE &Renderer::get_currentRenderTargetView() const noexcept
+{
+    return m_currentRenderTargetView;
+}
+
 void Renderer::incrementFrameIdx() noexcept
 {
     ++m_frameIdx;
